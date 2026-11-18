@@ -263,6 +263,16 @@ def sfx(kind, d=None):
     if kind == 'splash':
         n = int(1.8 * SR); t = np.arange(n) / SR
         return norm(bp_fft(noise(n), 300, 5000) * np.clip(t / 0.05, 0, 1) * np.exp(-t * 2.5), 0.8)
+    if kind == 'whistle':  # lifeguard whistle: three blasts
+        n = int(1.6 * SR); t = np.arange(n) / SR
+        gate = (((t % 0.5) < 0.32) & (t < 1.5)).astype(np.float32)
+        f = 2900 + 120 * np.sin(2 * np.pi * 34 * t)
+        x = np.sin(2 * np.pi * np.cumsum(f) / SR) * gate + bp_fft(noise(n), 2500, 4000) * 0.15 * gate
+        return norm(x, 0.35)
+    if kind == 'scream':  # crowd panic
+        n = int(2.5 * SR); t = np.arange(n) / SR
+        x = sum(bp_fft(noise(n), f, f * 1.5) * (0.5 + 0.5 * np.sin(2 * np.pi * rs.uniform(4, 9) * t + rs.uniform(0, 6))) for f in (700, 1100, 1600, 2300))
+        return norm(x * np.clip(t / 0.1, 0, 1) * np.exp(-t * 0.8), 0.55)
     if kind == 'sub_drop':
         n = int(2.0 * SR); t = np.arange(n) / SR
         f = 80 * np.exp(-t * 1.5) + 25

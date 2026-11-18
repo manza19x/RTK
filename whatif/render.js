@@ -44,7 +44,7 @@ async function openPage(browser, port) {
       await page.evaluate((t) => window.renderAt(t), s);
       const t1 = Date.now();
       await page.evaluate(() => new Promise(requestAnimationFrame));
-      console.log('render+raf', Date.now() - t1, 'evaluate', t1 - t0, await page.evaluate(() => window.lastTiming));
+
       const f = path.join(OUT, 'stills', `${name}_${String(s).replace('.', '_')}.jpg`);
       await page.screenshot({ path: f, type: 'jpeg', quality: 85 });
       console.log(f, Date.now() - t0, 'ms');

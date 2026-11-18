@@ -1,13 +1,13 @@
 import { World } from './world.js';
 import { HUD } from './hud.js';
 const name = new URLSearchParams(location.search).get('v');
+await document.fonts.load('64px Serif4'); await document.fonts.load('italic 52px Serif4'); await document.fonts.load('600 23px Inter'); await document.fonts.load('500 21px Inter');
+await document.fonts.ready;
 const mod = await import(`../videos/${name}.js`);
 const spec = mod.default;
 const world = new World(document.getElementById('gl'));
 spec.setup(world);
 const hud = new HUD(spec);
-await document.fonts.load('64px Serif4'); await document.fonts.load('italic 52px Serif4'); await document.fonts.load('600 23px Inter'); await document.fonts.load('500 21px Inter');
-await document.fonts.ready;
-window.renderAt = (t) => { const a = performance.now(); spec.update(t, world); const b = performance.now(); world.render(t); const px = new Uint8Array(4); const gl = world.renderer.getContext(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); const c = performance.now(); hud.render(t); const d = performance.now(); window.lastTiming = [b - a, c - b, d - c].map(Math.round); return true; };
+window.renderAt = (t) => { spec.update(t, world); world.render(t); const px = new Uint8Array(4); const gl = world.renderer.getContext(); gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px); hud.render(t); return true; };
 window.specInfo = { duration: spec.duration, title: spec.title, audio: spec.audio };
 window.ready = true;
