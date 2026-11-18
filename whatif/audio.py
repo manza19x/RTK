@@ -121,7 +121,16 @@ def amb_city(n):
     return norm(out, 0.4)
 
 
-AMB = dict(waves=amb_waves, crowd=amb_crowd, wind=amb_wind, storm=amb_storm, night=amb_night, underwater=amb_underwater, city=amb_city)
+def amb_rain(n):
+    t = np.arange(n) / SR
+    x = bp_fft(noise(n), 1500, 9000) * 0.6 + lp_fft(noise(n), 500) * 0.3
+    for k in range(int(n / SR * 30)):
+        s0 = int(rs.uniform(0, n - 2000)); L = 600
+        x[s0:s0 + L] += bp_fft(noise(L), 2000, 7000) * np.exp(-np.arange(L) / SR * 300) * 0.6
+    return norm(x * (0.85 + 0.15 * np.sin(2 * np.pi * 0.2 * t)), 0.5)
+
+
+AMB = dict(rain=amb_rain, waves=amb_waves, crowd=amb_crowd, wind=amb_wind, storm=amb_storm, night=amb_night, underwater=amb_underwater, city=amb_city)
 
 
 # ---------------- music beds ----------------
@@ -290,6 +299,18 @@ def sfx(kind, d=None):
         n = int(0.4 * SR); t = np.arange(n) / SR
         x = lp_fft(noise(n), 400) * np.exp(-t * 25) + np.sin(2 * np.pi * 90 * t) * np.exp(-t * 20) + bp_fft(noise(n), 2000, 6000) * np.exp(-t * 80) * 0.5
         return norm(x, 0.8)
+    if kind in ('thunder_near', 'thunder_far'):
+        near = kind == 'thunder_near'
+        n = int((5.5 if near else 5.0) * SR); t = np.arange(n) / SR
+        delay = 0.0 if near else 0.9
+        tt = np.clip(t - delay, 0, None)
+        env = (tt > 0) * np.exp(-tt / (1.6 if near else 1.3)) * (0.6 + 0.4 * np.abs(np.sin(2 * np.pi * 1.7 * tt + rs.uniform(0, 3))))
+        rumble = lp_fft(noise(n), 160 if near else 110) * env
+        x = rumble * 2.2
+        if near:
+            crack = bp_fft(noise(n), 800, 9000) * np.exp(-t * 14) * 1.2 + lp_fft(noise(n), 2500) * np.exp(-t * 6) * 0.8
+            x = x + crack
+        return norm(np.tanh(x * 1.5), 0.95 if near else 0.6)
     if kind == 'sub_drop':
         n = int(2.0 * SR); t = np.arange(n) / SR
         f = 80 * np.exp(-t * 1.5) + 25

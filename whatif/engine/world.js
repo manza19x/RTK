@@ -66,11 +66,11 @@ void main(){
 }`;
 const seaFrag = `
 uniform vec3 shallow, deep, foamCol, fogCol, sunDir, ice;
-uniform float fogNear, fogFar, time, slopeSea, slopeLand, iceAmt, light, foamAmt, dim;
+uniform float fogNear, fogFar, time, slopeSea, slopeLand, iceAmt, light, foamAmt, dim, seabed;
 varying vec3 vW; varying float vTsu;
 float groundH(float z){ return z < 0. ? z*slopeSea : z*slopeLand; }
 void main(){
-  float depth = vW.y - groundH(vW.z);
+  float depth = vW.y - groundH(vW.z) + seabed;
   vec3 c = mix(shallow, deep, smoothstep(0.3, 3.5, depth));
   vec3 n = normalize(cross(dFdx(vW), dFdy(vW))); if (n.y < 0.) n = -n;
   vec3 L = normalize(sunDir);
@@ -151,7 +151,7 @@ export class World {
       shallow: { value: col(0x3fd0c4) }, deep: { value: col(0x1b6f8f) }, foamCol: { value: col(0xf4fbfb) },
       fogCol: { value: this.fog.color }, fogNear: { value: 60 }, fogFar: { value: 420 },
       sunDir: { value: this.sunDir }, slopeSea: { value: this.slopeSea }, slopeLand: { value: this.slopeLand },
-      ice: { value: col(0xdfeef5) }, iceAmt: { value: 0 }, light: { value: 1 }, foamAmt: { value: 1 }, dim: { value: 1 },
+      ice: { value: col(0xdfeef5) }, iceAmt: { value: 0 }, light: { value: 1 }, foamAmt: { value: 1 }, dim: { value: 1 }, seabed: { value: 0 },
     };
     const sg = new THREE.PlaneGeometry(1600, 1600, +(qp.get("seg") || 400), +(qp.get("seg") || 400)); sg.rotateX(-Math.PI / 2);
     this.sea = new THREE.Mesh(sg, new THREE.ShaderMaterial({ uniforms: this.seaU, vertexShader: seaVert, fragmentShader: seaFrag }));

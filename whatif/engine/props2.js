@@ -181,15 +181,16 @@ export function datePalm(h = 10) {
 }
 
 // ---------- Everest ----------
-export function mountainMesh(hFn, size = 900, seg = 220, seed = 3) {
+export function mountainMesh(hFn, size = 900, seg = 220, seed = 3, flatCol = 0xf4f8fc, steepCol = 0x5b5552, flatMin = 0.62) {
   const geo = new THREE.PlaneGeometry(size, size, seg, seg).rotateX(-Math.PI / 2);
   const pos = geo.attributes.position, r = rng(seed);
   for (let i = 0; i < pos.count; i++) pos.setY(i, hFn(pos.getX(i), pos.getZ(i)) + (r() - 0.5) * 0.25);
   geo.computeVertexNormals();
   const nrm = geo.attributes.normal, cols = [];
   for (let i = 0; i < pos.count; i++) {
-    const ny = nrm.getY(i); const snow = ny > 0.62 ? 1 : ny > 0.5 ? 0.5 : 0;
-    const c = new THREE.Color(0x5b5552).lerp(new THREE.Color(0xf4f8fc), snow); cols.push(c.r, c.g, c.b);
+    const ny = nrm.getY(i); const snow = ny > flatMin ? 1 : ny > flatMin - 0.12 ? 0.5 : 0;
+    const c = new THREE.Color(steepCol).lerp(new THREE.Color(flatCol), snow);
+    const v = 0.92 + r() * 0.16; cols.push(c.r * v, c.g * v, c.b * v);
   }
   geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   const m = new THREE.Mesh(geo, std({ vertexColors: true, flatShading: true, roughness: 0.95 }));

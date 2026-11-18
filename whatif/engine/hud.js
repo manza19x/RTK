@@ -186,6 +186,17 @@ export class HUD {
         g.beginPath(); g.arc((x + W) % W, y, sz, 0, Math.PI * 2); g.fill();
       }
     }
+    // rain
+    if (fx.rain) {
+      const r = rng(71);
+      g.strokeStyle = `rgba(200,215,235,${0.5 * fx.rain})`;
+      for (let i = 0; i < 260; i++) {
+        const x0 = r() * (W + 400) - 200, sp = 1800 + r() * 900, ph = r() * H, len = 40 + r() * 70;
+        const y = (t * sp + ph) % (H + 100) - 50, x = x0 - (y / H) * 160;
+        g.lineWidth = 1 + r() * 1.6;
+        g.beginPath(); g.moveTo(x, y); g.lineTo(x - len * 0.18, y + len); g.stroke();
+      }
+    }
     // wind streaks
     if (fx.wind) {
       const r = rng(41);
