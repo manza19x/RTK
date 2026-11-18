@@ -1,0 +1,13 @@
+import { World } from './world.js';
+import { HUD } from './hud.js';
+const name = new URLSearchParams(location.search).get('v');
+const mod = await import(`../videos/${name}.js`);
+const spec = mod.default;
+const world = new World(document.getElementById('gl'));
+spec.setup(world);
+const hud = new HUD(spec);
+await document.fonts.load('64px Serif4'); await document.fonts.load('italic 52px Serif4'); await document.fonts.load('600 23px Inter'); await document.fonts.load('500 21px Inter');
+await document.fonts.ready;
+window.renderAt = (t) => { spec.update(t, world); world.render(t); hud.render(t); return true; };
+window.specInfo = { duration: spec.duration, title: spec.title, audio: spec.audio };
+window.ready = true;
