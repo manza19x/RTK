@@ -76,10 +76,11 @@ export default {
     for (let z = 140; z > -1300; z -= 22) { const p = palm(9 + r() * 3, 500 + z); p.position.set(0, 0.3, z); w.scene.add(p); }
     for (let z = 200; z > -1300; z -= 10) for (const x of [-10, 10]) { const s = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 4).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xd6d0c0 })); s.position.set(x, 0.03, z); w.scene.add(s); }
     // hotels + neon
-    const tints = [0x8a6d2b, 0x2b3f6b, 0xd9d4c8, 0x3b2b4f, 0x6b2b2b, 0x2b2f3a];
+    const tints = [0xb08d3b, 0x3b5a8f, 0xe9e4d8, 0x5b4b7f, 0x8f3b3b, 0x6b7080];
     for (const side of [-1, 1]) {
       let z = 40;
       while (z > -1400) {
+        if (side > 0 && z > -340 && z < -170) { z = -340; continue; }
         const wd = 50 + r() * 40, h = 90 + r() * 140, d = 40 + r() * 20;
         const b = hotelTower(wd, h, d, Math.floor(r() * 1e6), tints[Math.floor(r() * tints.length)]);
         b.position.set(side * (75 + d / 2 + r() * 30), 0, z - wd / 2); b.rotation.y = side * Math.PI / 2; w.scene.add(b);
@@ -103,7 +104,7 @@ export default {
     const needle = new THREE.Mesh(new THREE.CylinderGeometry(4, 9, 330, 10).translate(0, 165, 0), new THREE.MeshStandardMaterial({ color: 0xe8e8e8 })); needle.position.set(60, 0, -1500); w.scene.add(needle);
     const podT = new THREE.Mesh(new THREE.CylinderGeometry(22, 14, 30, 16).translate(0, 300, 0), new THREE.MeshStandardMaterial({ color: 0xdddddd, emissive: 0x334466 })); podT.position.copy(needle.position); w.scene.add(podT);
     // fountain lake with jets
-    const lake = new THREE.Mesh(new THREE.PlaneGeometry(130, 60).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x0d2a3f, roughness: 0.1, metalness: 0.3 })); lake.position.set(100, 0.1, -270); w.scene.add(lake);
+    const lake = new THREE.Mesh(new THREE.PlaneGeometry(130, 60).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x0d2a3f, roughness: 0.1, metalness: 0.3 })); lake.position.set(70, 0.1, -255); lake.scale.set(0.8, 1, 1.4); w.scene.add(lake);
     jets = new THREE.InstancedMesh(new THREE.SphereGeometry(0.5, 6, 4), new THREE.MeshBasicMaterial({ color: 0xe8f6ff, toneMapped: false, transparent: true, opacity: 0.8 }), 30 * 14);
     jets.frustumCulled = false; w.scene.add(jets);
     // welcome sign at the south end
@@ -121,7 +122,7 @@ export default {
   update(t, w) {
     // night lighting
     w.skyU.top.value.set(0x090c22); w.skyU.hor.value.set(0x4a2c48); w.fog.color.set(0x251a2c); w.skyU.bot.value.copy(w.fog.color);
-    w.skyU.sunGlow.value = 0; w.light(0.55, 0.9); w.hemi.color.set(0xffc6b0); w.hemi.groundColor.set(0x241c24); w.sun.color.set(0xffd2b8);
+    w.skyU.sunGlow.value = 0; w.light(0.8, 1.35); w.hemi.color.set(0xffc6b0); w.hemi.groundColor.set(0x241c24); w.sun.color.set(0xffd2b8);
     w.starMat.opacity = 0.25;
     neonMats.forEach((m, i) => m.color.setScalar(0.85 + 0.15 * Math.sin(t * (3 + i % 5) + i)));
     beam.material.opacity = 0.3 + 0.05 * Math.sin(t * 2);
@@ -129,7 +130,7 @@ export default {
     const M = new THREE.Matrix4(), V = new THREE.Vector3(), Q = new THREE.Quaternion(), S = new THREE.Vector3();
     for (let j = 0; j < 30; j++) {
       const h = 6 + 22 * Math.max(0, Math.sin(t * 1.6 + j * 0.45)) * (t > WIN ? 1 : 0.4);
-      for (let k = 0; k < 14; k++) { V.set(45 + j * 3.8, (k / 13) * h, -270 + Math.sin(j * 0.6) * 8); S.setScalar(0.8 + (1 - k / 13) * 0.8); M.compose(V, Q, S); jets.setMatrixAt(j * 14 + k, M); }
+      for (let k = 0; k < 14; k++) { V.set(70 + Math.sin(j * 0.5) * 30, (k / 13) * h, -300 + j * 3.2); S.setScalar(0.8 + (1 - k / 13) * 0.8); M.compose(V, Q, S); jets.setMatrixAt(j * 14 + k, M); }
     }
     jets.instanceMatrix.needsUpdate = true;
     // cash tower
@@ -138,13 +139,13 @@ export default {
 
     // camera
     let cam;
-    if (t < 3.2) cam = keys(t, [[0, [8, 3.2, 176, 0, 9, 150, 50]], [3.2, [5, 3.4, 170, 0, 10, 140, 50]]], (k) => k);
+    if (t < 3.2) cam = keys(t, [[0, [7, 2.4, 178, 0, 19, 128, 50]], [3.2, [5, 2.6, 172, 0, 19, 120, 50]]], (k) => k);
     else if (t < WIN) cam = keys(t, [[3.2, [3, 2.2, 125, 0, 30, -400, 56]], [WIN, [3, 2.2, 70, 0, 30, -400, 56]]]);
     else if (t < SPEND) cam = keys(t, [[WIN, [19, 2.4, 40, 26, 2.4, 10, 54]], [SPEND, [18, 2.6, 34, 26, 2.6, 4, 54]]]);
-    else if (t < STACK) cam = keys(t, [[SPEND, [40, 7, -200, 100, 14, -268, 54]], [STACK, [44, 8, -210, 100, 16, -268, 54]]]);
-    else if (t < WEIGHT) cam = keys(t, [[STACK, [22, 2, -60, 0, 120, -110, 62]], [20.8, [24, 2, -58, 0, 600, -110, 62]], [WEIGHT, [-260, 500, 420, 0, 900, -110, 52]]]);
-    else if (t < TWIST) cam = keys(t, [[WEIGHT, [-260, 500, 420, 0, 900, -110, 52]], [TWIST, [-300, 450, 460, 0, 800, -110, 52]]]);
-    else if (t < 31.8) cam = keys(t, [[TWIST, [-70, 120, -280, -230, 60, -560, 54]], [31.8, [-40, 110, -330, -230, 60, -560, 54]]]);
+    else if (t < STACK) cam = keys(t, [[SPEND, [20, 8, -180, 70, 14, -260, 54]], [STACK, [22, 9, -190, 70, 16, -262, 54]]]);
+    else if (t < WEIGHT) cam = keys(t, [[STACK, [22, 2, -60, 0, 120, -110, 62]], [20.8, [24, 2, -58, 0, 600, -110, 62]], [WEIGHT, [-260, 420, 420, 0, 280, -110, 52]]]);
+    else if (t < TWIST) cam = keys(t, [[WEIGHT, [-260, 420, 420, 0, 280, -110, 52]], [TWIST, [-300, 380, 460, 0, 260, -110, 52]]]);
+    else if (t < 31.8) cam = keys(t, [[TWIST, [0, 200, 330, -20, 60, -600, 50]], [31.8, [0, 170, 240, -20, 60, -600, 50]]]);
     else cam = keys(t, [[31.8, [6, 2.4, 110, 0, 25, -400, 56]], [END, [6, 30, 160, 0, 60, -400, 52]]]);
     w.cam([cam[0], cam[1], cam[2]], [cam[3], cam[4], cam[5]], cam[6]);
     // money rain around the camera
