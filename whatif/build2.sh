@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 N=$1; W=${2:-4}
-node render.js "$N" --workers "$W" --q "seg=220&gl=0.8" 2>&1 | grep --line-buffered -v "GL Driver"
+node render.js "$N" --workers "$W" --q "seg=${SEG:-220}&gl=0.8" 2>&1 | grep --line-buffered -v "GL Driver"
 python3 audio.py "out/$N.audio.json" "out/$N.wav"
 mkdir -p final
 ffmpeg -v error -y -i "out/$N.silent.mp4" -i "out/$N.wav" -c:v copy -c:a aac -b:a 192k -shortest -movflags +faststart "final/$N.mp4"

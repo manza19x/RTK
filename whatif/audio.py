@@ -273,6 +273,23 @@ def sfx(kind, d=None):
         n = int(2.5 * SR); t = np.arange(n) / SR
         x = sum(bp_fft(noise(n), f, f * 1.5) * (0.5 + 0.5 * np.sin(2 * np.pi * rs.uniform(4, 9) * t + rs.uniform(0, 6))) for f in (700, 1100, 1600, 2300))
         return norm(x * np.clip(t / 0.1, 0, 1) * np.exp(-t * 0.8), 0.55)
+    if kind == 'roar':
+        dd = d or 1.8; n = int(dd * SR); t = np.arange(n) / SR
+        f = 75 + 35 * np.sin(np.pi * t / dd) + 6 * np.sin(2 * np.pi * 7 * t)
+        ph = np.cumsum(f) / SR
+        saw = 2 * (ph % 1) - 1
+        x = lp_fft(saw.astype(np.float32), 900) + bp_fft(noise(n), 150, 1800) * 0.6
+        x *= (0.6 + 0.4 * np.sin(2 * np.pi * 13 * t)) * np.sin(np.pi * np.clip(t / dd, 0, 1)) ** 0.5
+        return norm(np.tanh(x * 2), 0.9)
+    if kind == 'scratch':
+        n = int(0.45 * SR); t = np.arange(n) / SR
+        f = 1800 * np.exp(-t * 9) + 150
+        x = np.sin(2 * np.pi * np.cumsum(f) / SR) * 0.5 + bp_fft(noise(n), 600, 4000) * 0.6
+        return norm(x * np.exp(-t * 5), 0.6)
+    if kind == 'chomp':
+        n = int(0.4 * SR); t = np.arange(n) / SR
+        x = lp_fft(noise(n), 400) * np.exp(-t * 25) + np.sin(2 * np.pi * 90 * t) * np.exp(-t * 20) + bp_fft(noise(n), 2000, 6000) * np.exp(-t * 80) * 0.5
+        return norm(x, 0.8)
     if kind == 'sub_drop':
         n = int(2.0 * SR); t = np.arange(n) / SR
         f = 80 * np.exp(-t * 1.5) + 25
