@@ -94,10 +94,12 @@ void main(){
 export class World {
   constructor(canvas) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+    const qp = new URLSearchParams(location.search);
+    const gs = +(qp.get('gl') || 1);
     this.renderer.setPixelRatio(1);
-    this.renderer.setSize(W, H, false);
-    this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.setSize(Math.round(W * gs), Math.round(H * gs), false);
+    this.renderer.shadowMap.enabled = qp.get('sh') !== '0';
+    this.renderer.shadowMap.type = qp.get('soft') === '0' ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -111,7 +113,7 @@ export class World {
     s.add(this.hemi);
     this.sun = new THREE.DirectionalLight(0xfff3e0, 2.4);
     this.sun.castShadow = true;
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(+(qp.get('sm') || 2048), +(qp.get('sm') || 2048));
     const sc = this.sun.shadow.camera; sc.left = -45; sc.right = 45; sc.top = 45; sc.bottom = -45; sc.near = 1; sc.far = 300;
     this.sun.shadow.bias = -0.0004; this.sun.shadow.normalBias = 0.02;
     s.add(this.sun); s.add(this.sun.target);
@@ -151,7 +153,7 @@ export class World {
       sunDir: { value: this.sunDir }, slopeSea: { value: this.slopeSea }, slopeLand: { value: this.slopeLand },
       ice: { value: col(0xdfeef5) }, iceAmt: { value: 0 }, light: { value: 1 }, foamAmt: { value: 1 }, dim: { value: 1 },
     };
-    const sg = new THREE.PlaneGeometry(1600, 1600, 400, 400); sg.rotateX(-Math.PI / 2);
+    const sg = new THREE.PlaneGeometry(1600, 1600, +(qp.get("seg") || 400), +(qp.get("seg") || 400)); sg.rotateX(-Math.PI / 2);
     this.sea = new THREE.Mesh(sg, new THREE.ShaderMaterial({ uniforms: this.seaU, vertexShader: seaVert, fragmentShader: seaFrag }));
     this.sea.position.z = -500; // most of it out at sea
     s.add(this.sea);
