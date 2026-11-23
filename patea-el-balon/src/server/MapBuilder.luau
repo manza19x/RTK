@@ -2,13 +2,13 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local Scenery = require(script.Parent.Scenery)
 
 local MapBuilder = {}
 
 local W = Config.FIELD_WIDTH
 local L = Config.ZONE_LENGTH
-local SIDE = 26 -- ancho de las orillas con decoración
-local WALL_X = W / 2 + SIDE -- donde empiezan las paredes del cañón
+local OUTER_X = Scenery.EDGE + Scenery.LOT -- borde exterior de los escenarios
 
 local function makePart(props: { [string]: any }): Part
 	local p = Instance.new("Part")
@@ -128,39 +128,15 @@ function Decorations.Roca(model: Model, pos: Vector3, rng: Random)
 	})
 end
 
--- Detalles chiquitos en el piso de cada bioma
-local function smallDetail(parent: Instance, pos: Vector3, rng: Random, biome: Config.Biome)
-	local name = biome.Decoration
-	if name == "Casa" or name == "Arbol" then
-		-- matas de pasto y flores
-		local green = biome.GroundAlt:Lerp(Color3.new(0, 0.3, 0), 0.25)
-		for _ = 1, 3 do
-			makePart({ Size = Vector3.new(0.6, rng:NextNumber(1.2, 2.4), 0.6), Position = pos + Vector3.new(rng:NextNumber(-1, 1), 0.8, rng:NextNumber(-1, 1)), Color = green, CanCollide = false, Parent = parent })
-		end
-		local petals = { Color3.fromRGB(255, 90, 120), Color3.fromRGB(255, 220, 60), Color3.new(1, 1, 1) }
-		makePart({ Size = Vector3.new(1, 0.5, 1), Position = pos + Vector3.new(0, 2, 0), Color = petals[rng:NextInteger(1, #petals)], CanCollide = false, Parent = parent })
-	elseif name == "Palmera" then
-		-- conchas y estrellas de mar
-		local colors = { Color3.fromRGB(255, 140, 120), Color3.fromRGB(255, 200, 220), Color3.fromRGB(255, 170, 60) }
-		makePart({ Size = Vector3.new(1.6, 0.4, 1.6), CFrame = CFrame.new(pos + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, rng:NextNumber(0, 3), 0), Color = colors[rng:NextInteger(1, #colors)], CanCollide = false, Parent = parent })
-	elseif name == "Cactus" then
-		makePart({ Size = Vector3.new(2, 1.2, 1.6), CFrame = CFrame.new(pos + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, rng:NextNumber(0, 3), 0.2), Color = Color3.fromRGB(200, 130, 80), Parent = parent })
-	elseif name == "Pino" then
-		makePart({ Shape = Enum.PartType.Ball, Size = Vector3.new(2, 2, 2), Position = pos + Vector3.new(0, 0.8, 0), Color = Color3.new(1, 1, 1), Material = Enum.Material.Snow, Parent = parent })
-	else
-		makePart({ Size = Vector3.new(1.6, 1.4, 1.6), CFrame = CFrame.new(pos + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0.3, rng:NextNumber(0, 3), 0.2), Color = Color3.fromRGB(255, 120, 40), Material = Enum.Material.Neon, Parent = parent })
-	end
-end
-
--- Arco al inicio de cada zona con su número y su suerte
-local function buildZoneArch(parent: Instance, zone: number, startZ: number, biome: Config.Biome)
+-- Arco al inicio de cada zona con su número, nombre y suerte
+local function buildZoneArch(parent: Instance, zone: number, startZ: number, info: Config.ZoneInfo)
 	local pillarColor = Color3.fromRGB(245, 245, 245)
-	local barColor = biome.Ground:Lerp(Color3.new(0, 0, 0), 0.35)
+	local barColor = Color3.fromRGB(35, 35, 48)
 	for side = -1, 1, 2 do
 		makePart({ Name = "Pilar", Size = Vector3.new(4, 28, 4), Position = Vector3.new(side * (W / 2 + 3), 14, startZ), Color = pillarColor, TopSurface = Enum.SurfaceType.Studs, Parent = parent })
-		makePart({ Name = "Gema", Size = Vector3.new(3.5, 3.5, 3.5), CFrame = CFrame.new(side * (W / 2 + 3), 36, startZ) * CFrame.Angles(0, math.rad(45), math.rad(45)), Color = biome.WallTop, Material = Enum.Material.Neon, CanCollide = false, Parent = parent })
+		makePart({ Name = "Gema", Size = Vector3.new(3.5, 3.5, 3.5), CFrame = CFrame.new(side * (W / 2 + 3), 36, startZ) * CFrame.Angles(0, math.rad(45), math.rad(45)), Color = info.Field, Material = Enum.Material.Neon, CanCollide = false, Parent = parent })
 	end
-	local bar = makePart({ Name = "Letrero", Size = Vector3.new(W + 10, 7, 3), Position = Vector3.new(0, 30.5, startZ), Color = barColor, TopSurface = Enum.SurfaceType.Studs, Parent = parent })
+	local bar = makePart({ Name = "Letrero", Size = Vector3.new(W + 10, 8, 3), Position = Vector3.new(0, 31, startZ), Color = barColor, TopSurface = Enum.SurfaceType.Studs, Parent = parent })
 	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
 		local surface = Instance.new("SurfaceGui")
 		surface.Face = face
@@ -168,26 +144,20 @@ local function buildZoneArch(parent: Instance, zone: number, startZ: number, bio
 		surface.PixelsPerStud = 12
 		surface.LightInfluence = 0
 		surface.Parent = bar
-		makeLabel(
-			surface,
-			string.format("%s ZONA %d  ·  🍀 x%s", biome.Emoji, zone, Config.FormatLuck(Config.GetLuck(zone))),
-			UDim2.fromScale(0.96, 0.84),
-			UDim2.fromScale(0.02, 0.08),
-			Color3.new(1, 1, 1)
-		)
+		makeLabel(surface, string.format("%s ZONA %d: %s", info.Emoji, zone, info.Name), UDim2.fromScale(0.96, 0.55), UDim2.fromScale(0.02, 0.05), Color3.new(1, 1, 1))
+		makeLabel(surface, "🍀 Suerte x" .. Config.FormatLuck(Config.GetLuck(zone)), UDim2.fromScale(0.96, 0.36), UDim2.fromScale(0.02, 0.6), Color3.fromRGB(120, 255, 140))
 	end
 end
 
 -- ------------------------------------------------------------
--- Zonas
+-- Zonas: campo al centro y un escenario distinto a cada lado
 -- ------------------------------------------------------------
 local function buildZone(map: Folder, zone: number)
-	local biome = Config.GetBiome(zone)
+	local info = Config.GetZoneInfo(zone)
 	local startZ = (zone - 1) * L
 	local zoneFolder = Instance.new("Folder")
 	zoneFolder.Name = "Zona" .. zone
 	zoneFolder.Parent = map
-	local rng = Random.new(zone * 7919)
 
 	-- Piso a cuadros con relieve (3 columnas x 2 filas)
 	local cols, rows = 3, 2
@@ -210,55 +180,30 @@ local function buildZone(map: Folder, zone: number)
 	makePart({ Name = "Linea", Size = Vector3.new(W, 0.2, 1.2), Position = Vector3.new(0, 0.1, startZ), Color = white, CanCollide = false, Parent = zoneFolder })
 	makePart({ Name = "LineaCentro", Size = Vector3.new(1, 0.2, L), Position = Vector3.new(0, 0.1, startZ + L / 2), Color = white, Transparency = 0.2, CanCollide = false, Parent = zoneFolder })
 	if zone > 1 then
-		buildZoneArch(zoneFolder, zone, startZ, biome)
+		buildZoneArch(zoneFolder, zone, startZ, info)
 	end
 
-	local builder = Decorations[biome.Decoration]
 	for side = -1, 1, 2 do
 		makePart({ Name = "LineaLateral", Size = Vector3.new(1, 0.2, L), Position = Vector3.new(side * (W / 2 - 0.5), 0.1, startZ + L / 2), Color = white, CanCollide = false, Parent = zoneFolder })
-
-		-- Orilla con decoración
+		-- bordillo entre el campo y el escenario
+		makePart({ Name = "Bordillo", Size = Vector3.new(3, 1.2, L), Position = Vector3.new(side * (W / 2 + 1.5), 0.6, startZ + L / 2), Color = white, TopSurface = Enum.SurfaceType.Studs, Parent = zoneFolder })
+		-- terreno del escenario
 		makePart({
-			Name = "Orilla",
-			Size = Vector3.new(SIDE, 2, L),
-			Position = Vector3.new(side * (W / 2 + SIDE / 2), -0.6, startZ + L / 2),
-			Color = biome.GroundAlt:Lerp(Color3.new(0, 0, 0), 0.12),
+			Name = "Terreno",
+			Size = Vector3.new(Scenery.LOT, 2, L),
+			Position = Vector3.new(side * (Scenery.EDGE + Scenery.LOT / 2), -1, startZ + L / 2),
+			Color = info.Lot,
 			Material = Enum.Material.SmoothPlastic,
 			TopSurface = Enum.SurfaceType.Studs,
 			Parent = zoneFolder,
 		})
+		-- pared invisible para no caerse del mapa
+		makePart({ Name = "Limite", Size = Vector3.new(2, 120, L), Position = Vector3.new(side * (OUTER_X + 1), 59, startZ + L / 2), Transparency = 1, Parent = zoneFolder })
 
-		-- Paredes del cañón en terrazas, con franjas de colores
-		local wall2 = biome.Wall:Lerp(Color3.new(0, 0, 0), 0.15)
-		makePart({ Name = "Pared", Size = Vector3.new(12, 40, L), Position = Vector3.new(side * (WALL_X + 6), 19, startZ + L / 2), Color = biome.Wall, Material = Enum.Material.SmoothPlastic, Parent = zoneFolder })
-		makePart({ Name = "Cima", Size = Vector3.new(12.6, 3, L), Position = Vector3.new(side * (WALL_X + 6), 40.5, startZ + L / 2), Color = biome.WallTop, Material = Enum.Material.SmoothPlastic, TopSurface = Enum.SurfaceType.Studs, Parent = zoneFolder })
-		makePart({ Name = "Pared2", Size = Vector3.new(16, 70, L), Position = Vector3.new(side * (WALL_X + 20), 34, startZ + L / 2), Color = wall2, Material = Enum.Material.SmoothPlastic, Parent = zoneFolder })
-		makePart({ Name = "Cima2", Size = Vector3.new(16.6, 3, L), Position = Vector3.new(side * (WALL_X + 20), 70.5, startZ + L / 2), Color = biome.WallTop, Material = Enum.Material.SmoothPlastic, TopSurface = Enum.SurfaceType.Studs, Parent = zoneFolder })
-		for _, y in { 10, 26 } do
-			makePart({ Name = "Franja", Size = Vector3.new(0.6, 3, L), Position = Vector3.new(side * (WALL_X - 0.2), y, startZ + L / 2), Color = biome.Wall:Lerp(Color3.new(1, 1, 1), 0.18), Material = Enum.Material.SmoothPlastic, Parent = zoneFolder })
-		end
-		makePart({ Name = "Franja", Size = Vector3.new(0.6, 3, L), Position = Vector3.new(side * (WALL_X + 11.8), 56, startZ + L / 2), Color = wall2:Lerp(Color3.new(1, 1, 1), 0.18), Material = Enum.Material.SmoothPlastic, Parent = zoneFolder })
-
-		-- Decoraciones: en la orilla, arriba de la pared y en la terraza de atrás
-		local spots = {}
-		for i = 1, 5 do
-			table.insert(spots, Vector3.new(side * (W / 2 + SIDE / 2 + rng:NextNumber(-6, 6)), 0.4, startZ + (i - 0.5) * L / 5 + rng:NextNumber(-5, 5)))
-		end
-		for i = 1, 3 do
-			table.insert(spots, Vector3.new(side * (WALL_X + 6), 42, startZ + (i - 0.5) * L / 3 + rng:NextNumber(-8, 8)))
-		end
-		for i = 1, 2 do
-			table.insert(spots, Vector3.new(side * (WALL_X + 20), 72, startZ + (i - 0.5) * L / 2 + rng:NextNumber(-10, 10)))
-		end
-		for _, spot in spots do
-			local deco = Instance.new("Model")
-			deco.Name = biome.Decoration
-			builder(deco, spot, rng)
-			deco.Parent = zoneFolder
-		end
-		for _ = 1, 4 do
-			smallDetail(zoneFolder, Vector3.new(side * (W / 2 + rng:NextNumber(3, SIDE - 3)), 0.4, startZ + rng:NextNumber(2, L - 2)), rng, biome)
-		end
+		local scene = Instance.new("Model")
+		scene.Name = info.Scene .. (if side < 0 then "Izquierda" else "Derecha")
+		Scenery.Build(scene, zone, side, startZ)
+		scene.Parent = zoneFolder
 	end
 end
 
@@ -279,20 +224,20 @@ local function buildGoal(map: Folder)
 		Material = Enum.Material.ForceField,
 		Parent = map,
 	})
-	local lastBiome = Config.GetBiome(Config.NUM_ZONES)
+	local lastZone = Config.GetZoneInfo(Config.NUM_ZONES)
 	makePart({
 		Name = "PisoFinal",
-		Size = Vector3.new(W + SIDE * 2, 2, 20),
+		Size = Vector3.new(OUTER_X * 2, 2, 20),
 		Position = Vector3.new(0, -1, z + 6),
-		Color = lastBiome.Ground,
-		Material = lastBiome.GroundMaterial,
+		Color = lastZone.Field,
+		Material = Enum.Material.SmoothPlastic,
 		Parent = map,
 	})
 	makePart({
 		Name = "ParedFinal",
-		Size = Vector3.new(W + SIDE * 2 + 60, 80, 6),
+		Size = Vector3.new(OUTER_X * 2 + 20, 80, 6),
 		Position = Vector3.new(0, 39, z + 19),
-		Color = lastBiome.Wall,
+		Color = lastZone.Lot,
 		Material = Enum.Material.Slate,
 		Parent = map,
 	})
@@ -846,8 +791,6 @@ local function buildLobby(map: Folder)
 	wall(Vector3.new(LOBBY_HALF_WIDTH * 2 + 40, wallHeight, 10), Vector3.new(0, wallHeight / 2 - 2, -LOBBY_DEPTH - 5))
 	for side = -1, 1, 2 do
 		wall(Vector3.new(20, wallHeight, LOBBY_DEPTH + 10), Vector3.new(side * (LOBBY_HALF_WIDTH + 10), wallHeight / 2 - 2, -LOBBY_DEPTH / 2 - 5))
-		-- tapa entre el lobby y el cañón
-		wall(Vector3.new(LOBBY_HALF_WIDTH - WALL_X + 20, wallHeight, 6), Vector3.new(side * (WALL_X + (LOBBY_HALF_WIDTH - WALL_X + 20) / 2), wallHeight / 2 - 2, 3))
 	end
 
 	-- Árboles y flores

@@ -32,37 +32,67 @@ function Config.GetZoneFromDistance(distance: number): number
 end
 
 -- ------------------------------------------------------------
--- BIOMAS (cada uno ocupa 5 zonas)
+-- ZONAS: cada una tiene su propio escenario a los lados, y va mejorando:
+-- barrios -> ciudad -> playa -> estadios -> lujo -> leyenda
+-- Scene = qué se construye a los lados (ver server/Scenery.luau). Level = variante.
 -- ------------------------------------------------------------
-export type Biome = {
+export type ZoneInfo = {
 	Name: string,
 	Emoji: string,
-	Ground: Color3,
-	GroundAlt: Color3,
-	GroundMaterial: Enum.Material,
-	Wall: Color3,
-	WallTop: Color3,
-	Decoration: string,
+	Field: Color3,
+	FieldAlt: Color3,
+	Lot: Color3,
+	Scene: string,
+	Level: number?,
 }
 
-Config.ZONES_PER_BIOME = 5
-Config.Biomes = {
-	{ Name = "Barrio", Emoji = "🏘️", Ground = Color3.fromRGB(110, 200, 80), GroundAlt = Color3.fromRGB(95, 180, 70), GroundMaterial = Enum.Material.Grass, Wall = Color3.fromRGB(170, 90, 70), WallTop = Color3.fromRGB(120, 200, 80), Decoration = "Casa" },
-	{ Name = "Bosque", Emoji = "🌳", Ground = Color3.fromRGB(70, 170, 70), GroundAlt = Color3.fromRGB(60, 150, 60), GroundMaterial = Enum.Material.Grass, Wall = Color3.fromRGB(120, 80, 55), WallTop = Color3.fromRGB(90, 190, 60), Decoration = "Arbol" },
-	{ Name = "Playa", Emoji = "🏖️", Ground = Color3.fromRGB(240, 220, 150), GroundAlt = Color3.fromRGB(230, 205, 135), GroundMaterial = Enum.Material.Sand, Wall = Color3.fromRGB(200, 170, 110), WallTop = Color3.fromRGB(80, 190, 230), Decoration = "Palmera" },
-	{ Name = "Desierto", Emoji = "🌵", Ground = Color3.fromRGB(235, 180, 90), GroundAlt = Color3.fromRGB(220, 165, 75), GroundMaterial = Enum.Material.Sand, Wall = Color3.fromRGB(190, 100, 70), WallTop = Color3.fromRGB(220, 150, 90), Decoration = "Cactus" },
-	{ Name = "Nieve", Emoji = "❄️", Ground = Color3.fromRGB(235, 245, 255), GroundAlt = Color3.fromRGB(215, 230, 245), GroundMaterial = Enum.Material.Snow, Wall = Color3.fromRGB(150, 170, 200), WallTop = Color3.fromRGB(250, 250, 255), Decoration = "Pino" },
-	{ Name = "Volcán", Emoji = "🌋", Ground = Color3.fromRGB(70, 60, 60), GroundAlt = Color3.fromRGB(55, 48, 48), GroundMaterial = Enum.Material.Basalt, Wall = Color3.fromRGB(45, 35, 35), WallTop = Color3.fromRGB(255, 100, 30), Decoration = "Roca" },
-} :: { Biome }
+local rgb = Color3.fromRGB
+Config.Zones = {
+	-- Barrios
+	{ Name = "Barrio de tierra", Emoji = "🏚️", Field = rgb(150, 190, 80), FieldAlt = rgb(135, 175, 70), Lot = rgb(175, 135, 95), Scene = "Chozas" },
+	{ Name = "Barrio humilde", Emoji = "🧱", Field = rgb(125, 200, 80), FieldAlt = rgb(110, 185, 70), Lot = rgb(165, 150, 120), Scene = "Casitas", Level = 1 },
+	{ Name = "Barrio colorido", Emoji = "🎨", Field = rgb(110, 210, 80), FieldAlt = rgb(95, 195, 70), Lot = rgb(175, 175, 165), Scene = "Casitas", Level = 2 },
+	{ Name = "Barrio con canchita", Emoji = "⚽", Field = rgb(105, 215, 75), FieldAlt = rgb(90, 200, 65), Lot = rgb(160, 160, 150), Scene = "Canchita" },
+	{ Name = "Colonia", Emoji = "🏡", Field = rgb(100, 220, 80), FieldAlt = rgb(85, 205, 70), Lot = rgb(120, 205, 90), Scene = "Colonia" },
+	-- Ciudad
+	{ Name = "Calle comercial", Emoji = "🛍️", Field = rgb(95, 210, 90), FieldAlt = rgb(80, 195, 80), Lot = rgb(180, 180, 185), Scene = "Tiendas" },
+	{ Name = "Avenida", Emoji = "🚗", Field = rgb(90, 205, 95), FieldAlt = rgb(75, 190, 85), Lot = rgb(160, 160, 168), Scene = "Edificios", Level = 1 },
+	{ Name = "Parque de la ciudad", Emoji = "🌳", Field = rgb(85, 215, 85), FieldAlt = rgb(70, 200, 75), Lot = rgb(105, 200, 85), Scene = "Parque" },
+	{ Name = "Centro", Emoji = "🏙️", Field = rgb(90, 200, 100), FieldAlt = rgb(75, 185, 90), Lot = rgb(145, 145, 155), Scene = "Edificios", Level = 2 },
+	{ Name = "Rascacielos", Emoji = "🌆", Field = rgb(95, 195, 110), FieldAlt = rgb(80, 180, 100), Lot = rgb(125, 130, 145), Scene = "Rascacielos" },
+	-- Playa
+	{ Name = "Playa", Emoji = "🏖️", Field = rgb(240, 220, 150), FieldAlt = rgb(230, 205, 135), Lot = rgb(245, 225, 160), Scene = "Playa" },
+	{ Name = "Malecón", Emoji = "🌴", Field = rgb(235, 215, 150), FieldAlt = rgb(225, 200, 135), Lot = rgb(240, 220, 165), Scene = "Malecon" },
+	{ Name = "Zona de hoteles", Emoji = "🏨", Field = rgb(110, 215, 120), FieldAlt = rgb(95, 200, 110), Lot = rgb(240, 228, 180), Scene = "Hoteles" },
+	{ Name = "Puerto de yates", Emoji = "⛵", Field = rgb(100, 210, 140), FieldAlt = rgb(85, 195, 130), Lot = rgb(200, 190, 170), Scene = "Puerto" },
+	{ Name = "Resort de lujo", Emoji = "🍹", Field = rgb(95, 220, 130), FieldAlt = rgb(80, 205, 120), Lot = rgb(245, 235, 200), Scene = "Resort" },
+	-- Fútbol
+	{ Name = "Escuela de fútbol", Emoji = "🎽", Field = rgb(80, 200, 80), FieldAlt = rgb(65, 180, 65), Lot = rgb(95, 190, 80), Scene = "Escuela" },
+	{ Name = "Estadio de barrio", Emoji = "🏟️", Field = rgb(75, 200, 75), FieldAlt = rgb(60, 180, 60), Lot = rgb(120, 120, 128), Scene = "Gradas", Level = 1 },
+	{ Name = "Estadio de ciudad", Emoji = "🏟️", Field = rgb(70, 205, 70), FieldAlt = rgb(55, 185, 55), Lot = rgb(110, 110, 120), Scene = "Gradas", Level = 2 },
+	{ Name = "Estadio profesional", Emoji = "🏟️", Field = rgb(65, 210, 70), FieldAlt = rgb(50, 190, 55), Lot = rgb(100, 100, 112), Scene = "Gradas", Level = 3 },
+	{ Name = "Gran estadio", Emoji = "🏆", Field = rgb(60, 215, 70), FieldAlt = rgb(45, 195, 55), Lot = rgb(90, 90, 105), Scene = "Gradas", Level = 4 },
+	-- Lujo
+	{ Name = "Mansiones", Emoji = "🏛️", Field = rgb(100, 220, 100), FieldAlt = rgb(85, 205, 85), Lot = rgb(130, 210, 110), Scene = "Mansiones" },
+	{ Name = "Autos de lujo", Emoji = "🏎️", Field = rgb(90, 210, 110), FieldAlt = rgb(75, 195, 95), Lot = rgb(70, 70, 82), Scene = "Autos" },
+	{ Name = "Castillos", Emoji = "🏰", Field = rgb(110, 200, 90), FieldAlt = rgb(95, 185, 80), Lot = rgb(150, 150, 140), Scene = "Castillo" },
+	{ Name = "Ciudad dorada", Emoji = "✨", Field = rgb(235, 205, 95), FieldAlt = rgb(220, 190, 80), Lot = rgb(245, 220, 130), Scene = "Edificios", Level = 3 },
+	{ Name = "Salón de trofeos", Emoji = "🏆", Field = rgb(240, 190, 60), FieldAlt = rgb(225, 175, 50), Lot = rgb(130, 40, 55), Scene = "Trofeos" },
+	-- Leyenda
+	{ Name = "Sobre las nubes", Emoji = "☁️", Field = rgb(200, 230, 255), FieldAlt = rgb(185, 215, 245), Lot = rgb(240, 248, 255), Scene = "Nubes" },
+	{ Name = "Arcoíris", Emoji = "🌈", Field = rgb(255, 185, 220), FieldAlt = rgb(240, 170, 205), Lot = rgb(225, 240, 255), Scene = "Arcoiris" },
+	{ Name = "La Luna", Emoji = "🌙", Field = rgb(175, 175, 185), FieldAlt = rgb(155, 155, 165), Lot = rgb(130, 130, 140), Scene = "Luna" },
+	{ Name = "Galaxia", Emoji = "🪐", Field = rgb(80, 60, 135), FieldAlt = rgb(65, 50, 115), Lot = rgb(35, 25, 60), Scene = "Galaxia" },
+	{ Name = "Salón de la Fama", Emoji = "👑", Field = rgb(255, 210, 80), FieldAlt = rgb(240, 195, 65), Lot = rgb(60, 30, 80), Scene = "Fama" },
+} :: { ZoneInfo }
 
-function Config.GetBiome(zone: number): Biome
-	local index = math.clamp(math.ceil(zone / Config.ZONES_PER_BIOME), 1, #Config.Biomes)
-	return Config.Biomes[index]
+function Config.GetZoneInfo(zone: number): ZoneInfo
+	return Config.Zones[math.clamp(zone, 1, #Config.Zones)]
 end
 
 function Config.GetZoneColor(zone: number, alternate: boolean?): Color3
-	local biome = Config.GetBiome(zone)
-	return if alternate then biome.GroundAlt else biome.Ground
+	local info = Config.GetZoneInfo(zone)
+	return if alternate then info.FieldAlt else info.Field
 end
 
 -- ------------------------------------------------------------

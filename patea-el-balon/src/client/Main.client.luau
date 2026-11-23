@@ -1580,13 +1580,13 @@ RunService.RenderStepped:Connect(function(dt)
 
 		local distance = math.max(target.Z, 0)
 		local zone = Config.GetZoneFromDistance(distance)
-		local biome = Config.GetBiome(zone)
+		local zoneInfo = Config.GetZoneInfo(zone)
 		luckLabel.Text = "x" .. Config.FormatLuck(Config.GetLuckAtDistance(distance))
 		distanceLabel.Text = string.format("📏 %s m · Zona %d", Config.FormatNumber(distance), zone)
-		if biome.Name ~= lastBiome then
-			lastBiome = biome.Name
-			biomeLabel.Text = biome.Name .. " " .. biome.Emoji
-			biomeLabel.TextColor3 = biome.Ground:Lerp(Color3.new(1, 1, 1), 0.35)
+		if zoneInfo.Name ~= lastBiome then
+			lastBiome = zoneInfo.Name
+			biomeLabel.Text = zoneInfo.Emoji .. " " .. zoneInfo.Name
+			biomeLabel.TextColor3 = zoneInfo.Field:Lerp(Color3.new(1, 1, 1), 0.45)
 			popIn(biomeLabel)
 		end
 	elseif cameraMode ~= "chase" then
