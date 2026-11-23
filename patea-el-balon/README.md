@@ -4,6 +4,14 @@ Patea el balón a través de 30 zonas, cada una con su propio escenario a los la
 Donde cae el balón llega corriendo uno de **40 futbolistas**. Los raros (como Messi, 1 en 250.000, o Ronaldo Nazário, 1 en 2.000.000) solo salen con mucha suerte.
 Cada patada **entrena tu poder**, y los futbolistas de tu **plantilla** te dan monedas cada segundo.
 
+## Ícono y miniaturas
+
+En la carpeta `imagenes/`:
+- `icono-512.png`: ícono del juego (512 × 512).
+- `miniatura-1-1920x1080.png` y `miniatura-2-1920x1080.png`: miniaturas (thumbnails).
+
+Se suben en [create.roblox.com](https://create.roblox.com) → tu experiencia → **Places → Información básica / Thumbnails**.
+
 ## Cómo jugarlo en Roblox Studio (la forma fácil)
 
 1. Descarga el archivo **`PateaElBalon.rbxlx`** de esta carpeta.

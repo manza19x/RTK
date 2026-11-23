@@ -1,0 +1,132 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#222}
+.canvas{position:relative;overflow:hidden;margin-bottom:20px}
+.layer{position:absolute;inset:0}
+.title{font-family:'Lilita One';color:#ffd23c;-webkit-text-stroke:0;paint-order:stroke fill;position:absolute;white-space:nowrap;line-height:1}
+.tag{position:absolute;font-family:'Fredoka';font-weight:700;color:#fff;border-radius:22px;border:6px solid #14121a;display:flex;align-items:center;gap:14px;box-shadow:0 8px 0 rgba(0,0,0,.35)}
+.field{position:absolute;left:50%;bottom:-260px;width:5200px;height:2600px;margin-left:-2600px;transform-origin:50% 100%;
+  background:repeating-conic-gradient(#5ed34a 0 25%, #4bbf3c 0 50%) 0 0/260px 260px;}
+.cloud{position:absolute;background:#fff;border-radius:999px;opacity:.95}
+</style></head><body>
+
+<!-- ICONO 512 -->
+<div id="icon" class="canvas" style="width:512px;height:512px;background:radial-gradient(circle at 60% 40%,#7fd4ff,#2a8ef0 70%,#1d5fc8)">
+  <svg class="layer" width="512" height="512" id="iconSvg"></svg>
+</div>
+
+<!-- MINIATURA 1 -->
+<div id="thumb1" class="canvas" style="width:1920px;height:1080px;background:linear-gradient(#3aa6ff 0%,#8fd3ff 45%,#d6f1ff 62%)">
+  <div class="cloud" style="left:120px;top:330px;width:260px;height:70px"></div><div class="cloud" style="left:180px;top:300px;width:140px;height:80px"></div>
+  <div class="cloud" style="left:1500px;top:520px;width:300px;height:70px"></div><div class="cloud" style="left:1560px;top:490px;width:150px;height:80px"></div>
+  <div class="cloud" style="left:900px;top:470px;width:220px;height:55px"></div>
+  <svg class="layer" width="1920" height="1080" id="t1Svg"></svg>
+  <div class="title" style="left:70px;top:40px;font-size:190px;transform:rotate(-4deg)">
+    <span style="-webkit-text-stroke:26px #14121a;position:absolute">PATEA EL BALÓN</span>
+    <span style="position:relative;background:linear-gradient(#fff36a,#ffb21c 60%,#ff7a1c);-webkit-background-clip:text;color:transparent">PATEA EL BALÓN</span>
+  </div>
+  <div class="tag" style="left:1250px;top:760px;background:#2bb848;font-size:58px;padding:10px 28px">🍀 SUERTE x807</div>
+  <div class="tag" style="left:1250px;top:890px;background:#7b4dff;font-size:52px;padding:10px 28px">⚽ 40 FUTBOLISTAS</div>
+</div>
+
+<!-- MINIATURA 2 -->
+<div id="thumb2" class="canvas" style="width:1920px;height:1080px;background:radial-gradient(circle at 70% 35%,#5b2ca8,#26125a 45%,#0b0828 80%)">
+  <svg class="layer" width="1920" height="1080" id="t2Svg"></svg>
+  <div class="title" style="left:80px;top:50px;font-size:200px;transform:rotate(-3deg)">
+    <span style="-webkit-text-stroke:26px #14121a;position:absolute">¡AL ESPACIO!</span>
+    <span style="position:relative;background:linear-gradient(#ffffff,#c9a8ff 55%,#8a5cff);-webkit-background-clip:text;color:transparent">¡AL ESPACIO!</span>
+  </div>
+  <div class="title" style="left:100px;top:270px;font-size:78px">
+    <span style="-webkit-text-stroke:16px #14121a;position:absolute">ROMPE TODOS LOS PLANETAS</span>
+    <span style="position:relative;color:#ffd23c">ROMPE TODOS LOS PLANETAS</span>
+  </div>
+  <div class="tag" style="left:1240px;top:900px;background:linear-gradient(#ffd23c,#ff9a1c);color:#14121a;font-size:50px;padding:10px 28px;border-color:#14121a">👑 1 en 2.000.000</div>
+</div>
+
+<script src="parts.js"></script>
+<script>
+// ---------- ICONO ----------
+let rays = '';
+for (let i = 0; i < 16; i++) {
+  const a1 = i * 22.5 * Math.PI / 180, a2 = (i * 22.5 + 11) * Math.PI / 180;
+  rays += `<path d="M310,200 L${310 + Math.cos(a1) * 700},${200 + Math.sin(a1) * 700} L${310 + Math.cos(a2) * 700},${200 + Math.sin(a2) * 700} Z" fill="#fff" opacity="0.10"/>`;
+}
+document.getElementById('iconSvg').innerHTML = rays +
+  `<path d="M0,430 Q256,380 512,430 L512,512 L0,512 Z" fill="#4bbf3c" stroke="#14121a" stroke-width="6"/>` +
+  trail(60, 470, 320, 215, 120, ['#ff3b1c', '#ff9a1c', '#ffe45a']) +
+  ball(340, 200, 108) +
+  kicker(140, 410, 0.95, { kickLeg: -95, armFront: -30, armBack: 70 }) +
+  `<g transform="translate(256,470) rotate(-4)"><text text-anchor="middle" font-family="Lilita One" font-size="104" fill="none" stroke="#14121a" stroke-width="22" stroke-linejoin="round">¡PATEA!</text>
+   <defs><linearGradient id="ig" x1="0" y1="-80" x2="0" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#fff36a"/><stop offset="1" stop-color="#ff9a1c"/></linearGradient></defs>
+   <text text-anchor="middle" font-family="Lilita One" font-size="104" fill="url(#ig)">¡PATEA!</text></g>`;
+
+// ---------- MINIATURA 1 ----------
+let t1 = '';
+// campo a cuadros en perspectiva
+{
+  const yH = 600, yB = 1080, vx = 960;
+  const rowsY = [];
+  for (let i = 0; i < 40; i++) rowsY.push(yH + (yB - yH) / (1 + i * 0.22));
+  rowsY.push(yH);
+  t1 += `<rect x="0" y="${yH}" width="1920" height="${yB - yH}" fill="#4bbf3c"/>`;
+  const colW = 240;
+  for (let r = 0; r < rowsY.length - 1; r++) {
+    const y1 = rowsY[r], y2 = rowsY[r + 1];
+    const f1 = (y1 - yH) / (yB - yH), f2 = (y2 - yH) / (yB - yH);
+    for (let k = -14; k < 14; k++) {
+      if ((k + r) % 2 === 0) continue;
+      const xa = k * colW, xb = (k + 1) * colW;
+      t1 += `<polygon points="${vx + xa * f1},${y1} ${vx + xb * f1},${y1} ${vx + xb * f2},${y2} ${vx + xa * f2},${y2}" fill="#5ed34a"/>`;
+    }
+  }
+  // línea blanca del centro y bordes del campo
+  t1 += `<polygon points="${vx - 6},${yB} ${vx + 6},${yB} ${vx + 1},${yH} ${vx - 1},${yH}" fill="#fff" opacity="0.85"/>`;
+  t1 += `<rect x="0" y="${yH - 4}" width="1920" height="8" fill="#3aa83a"/>`;
+}
+// sol
+t1 += `<circle cx="1700" cy="140" r="90" fill="#fff6b0" opacity="0.9"/><circle cx="1700" cy="140" r="60" fill="#ffe25a"/>`;
+// arcos de zonas alejándose
+const arches = [[960, 760, 0.9, 'ZONA 10'], [960, 668, 0.42, 'ZONA 20'], [960, 632, 0.2, 'ZONA 30']];
+for (const [x, y, s, label] of arches.reverse()) {
+  t1 += `<g transform="translate(${x},${y}) scale(${s})">
+    <rect x="-430" y="-260" width="34" height="260" fill="#fff" stroke="#14121a" stroke-width="6"/><rect x="396" y="-260" width="34" height="260" fill="#fff" stroke="#14121a" stroke-width="6"/>
+    <rect x="-450" y="-330" width="900" height="80" rx="10" fill="#22232f" stroke="#14121a" stroke-width="6"/>
+    <text x="0" y="-272" text-anchor="middle" font-family="Lilita One" font-size="56" fill="#fff">${label}</text></g>`;
+}
+t1 += trail(520, 770, 1420, 400, 170, ['#ff3b1c', '#ff9a1c', '#ffe45a']);
+t1 += ball(1450, 390, 125);
+t1 += kicker(420, 870, 1.95, { kickLeg: -100, armFront: -25, armBack: 75, shirt: '#e8343c' });
+// chispas
+for (let i = 0; i < 10; i++) t1 += `<circle cx="${1300 + Math.cos(i) * 230}" cy="${390 + Math.sin(i * 1.7) * 170}" r="${6 + (i % 3) * 4}" fill="#ffe45a" stroke="#14121a" stroke-width="3"/>`;
+document.getElementById('t1Svg').innerHTML = t1;
+
+// ---------- MINIATURA 2 ----------
+let t2 = stars(1920, 1080, 220, 7);
+t2 += `<ellipse cx="1500" cy="300" rx="520" ry="220" fill="#ff5fd2" opacity="0.10"/><ellipse cx="500" cy="700" rx="480" ry="200" fill="#3fc8ff" opacity="0.08"/>`;
+// la Tierra / el campo abajo
+t2 += `<circle cx="760" cy="2300" r="1450" fill="#2f9cff" stroke="#14121a" stroke-width="8"/>
+       <path d="M-200,1080 Q760,760 1720,1080 Z" fill="#4bbf3c" opacity="0.95"/>`;
+t2 += planet(1650, 760, 95, '#3fd4a0', true, false);
+t2 += planet(260, 520, 70, '#ff8c3c', false, false);
+t2 += planet(1760, 240, 60, '#ffd23c', true, false);
+t2 += trail(520, 1000, 1210, 470, 160, ['#ff3b1c', '#ff9a1c', '#ffe45a']);
+{
+  let burst = '';
+  for (let i = 0; i < 16; i++) {
+    const a = i * 22.5 * Math.PI / 180, r1 = i % 2 ? 150 : 260;
+    burst += `${1290 + Math.cos(a) * r1},${430 + Math.sin(a) * r1} `;
+  }
+  t2 += `<polygon points="${burst}" fill="#ffb21c" stroke="#14121a" stroke-width="6"/>`;
+  let inner = '';
+  for (let i = 0; i < 16; i++) {
+    const a = (i * 22.5 + 11) * Math.PI / 180, r1 = i % 2 ? 100 : 180;
+    inner += `${1290 + Math.cos(a) * r1},${430 + Math.sin(a) * r1} `;
+  }
+  t2 += `<polygon points="${inner}" fill="#fff36a"/>`;
+}
+t2 += planet(1300, 410, 150, '#8a5cff', true, true);
+t2 += ball(1250, 450, 115);
+t2 += kicker(330, 1020, 1.75, { kickLeg: -120, armFront: -140, armBack: 130, shirt: '#ffc832', shorts: '#2a50c8', boot: '#ffc832', crown: true, number: '9' });
+document.getElementById('t2Svg').innerHTML = t2;
+</script></body></html>
