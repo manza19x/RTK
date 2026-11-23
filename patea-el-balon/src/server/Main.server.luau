@@ -282,6 +282,19 @@ local function createBall(ballTier: number): Part
 	trail.LightEmission = 0.5
 	trail.FaceCamera = true
 	trail.Parent = ball
+
+	-- Los balones buenos sueltan destellos
+	if ballTier >= 5 then
+		local sparkles = Instance.new("ParticleEmitter")
+		sparkles.Color = ColorSequence.new(info.Color, Color3.new(1, 1, 1))
+		sparkles.LightEmission = 1
+		sparkles.Size = NumberSequence.new(0.8, 0)
+		sparkles.Lifetime = NumberRange.new(0.4, 0.8)
+		sparkles.Rate = 40
+		sparkles.Speed = NumberRange.new(2, 5)
+		sparkles.SpreadAngle = Vector2.new(180, 180)
+		sparkles.Parent = ball
+	end
 	return ball
 end
 

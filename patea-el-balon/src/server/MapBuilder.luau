@@ -128,6 +128,56 @@ function Decorations.Roca(model: Model, pos: Vector3, rng: Random)
 	})
 end
 
+-- Detalles chiquitos en el piso de cada bioma
+local function smallDetail(parent: Instance, pos: Vector3, rng: Random, biome: Config.Biome)
+	local name = biome.Decoration
+	if name == "Casa" or name == "Arbol" then
+		-- matas de pasto y flores
+		local green = biome.GroundAlt:Lerp(Color3.new(0, 0.3, 0), 0.25)
+		for _ = 1, 3 do
+			makePart({ Size = Vector3.new(0.6, rng:NextNumber(1.2, 2.4), 0.6), Position = pos + Vector3.new(rng:NextNumber(-1, 1), 0.8, rng:NextNumber(-1, 1)), Color = green, CanCollide = false, Parent = parent })
+		end
+		local petals = { Color3.fromRGB(255, 90, 120), Color3.fromRGB(255, 220, 60), Color3.new(1, 1, 1) }
+		makePart({ Size = Vector3.new(1, 0.5, 1), Position = pos + Vector3.new(0, 2, 0), Color = petals[rng:NextInteger(1, #petals)], CanCollide = false, Parent = parent })
+	elseif name == "Palmera" then
+		-- conchas y estrellas de mar
+		local colors = { Color3.fromRGB(255, 140, 120), Color3.fromRGB(255, 200, 220), Color3.fromRGB(255, 170, 60) }
+		makePart({ Size = Vector3.new(1.6, 0.4, 1.6), CFrame = CFrame.new(pos + Vector3.new(0, 0.2, 0)) * CFrame.Angles(0, rng:NextNumber(0, 3), 0), Color = colors[rng:NextInteger(1, #colors)], CanCollide = false, Parent = parent })
+	elseif name == "Cactus" then
+		makePart({ Size = Vector3.new(2, 1.2, 1.6), CFrame = CFrame.new(pos + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, rng:NextNumber(0, 3), 0.2), Color = Color3.fromRGB(200, 130, 80), Parent = parent })
+	elseif name == "Pino" then
+		makePart({ Shape = Enum.PartType.Ball, Size = Vector3.new(2, 2, 2), Position = pos + Vector3.new(0, 0.8, 0), Color = Color3.new(1, 1, 1), Material = Enum.Material.Snow, Parent = parent })
+	else
+		makePart({ Size = Vector3.new(1.6, 1.4, 1.6), CFrame = CFrame.new(pos + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0.3, rng:NextNumber(0, 3), 0.2), Color = Color3.fromRGB(255, 120, 40), Material = Enum.Material.Neon, Parent = parent })
+	end
+end
+
+-- Arco al inicio de cada zona con su número y su suerte
+local function buildZoneArch(parent: Instance, zone: number, startZ: number, biome: Config.Biome)
+	local pillarColor = Color3.fromRGB(245, 245, 245)
+	local barColor = biome.Ground:Lerp(Color3.new(0, 0, 0), 0.35)
+	for side = -1, 1, 2 do
+		makePart({ Name = "Pilar", Size = Vector3.new(4, 28, 4), Position = Vector3.new(side * (W / 2 + 3), 14, startZ), Color = pillarColor, TopSurface = Enum.SurfaceType.Studs, Parent = parent })
+		makePart({ Name = "Gema", Size = Vector3.new(3.5, 3.5, 3.5), CFrame = CFrame.new(side * (W / 2 + 3), 36, startZ) * CFrame.Angles(0, math.rad(45), math.rad(45)), Color = biome.WallTop, Material = Enum.Material.Neon, CanCollide = false, Parent = parent })
+	end
+	local bar = makePart({ Name = "Letrero", Size = Vector3.new(W + 10, 7, 3), Position = Vector3.new(0, 30.5, startZ), Color = barColor, TopSurface = Enum.SurfaceType.Studs, Parent = parent })
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+		local surface = Instance.new("SurfaceGui")
+		surface.Face = face
+		surface.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		surface.PixelsPerStud = 12
+		surface.LightInfluence = 0
+		surface.Parent = bar
+		makeLabel(
+			surface,
+			string.format("%s ZONA %d  ·  🍀 x%s", biome.Emoji, zone, Config.FormatLuck(Config.GetLuck(zone))),
+			UDim2.fromScale(0.96, 0.84),
+			UDim2.fromScale(0.02, 0.08),
+			Color3.new(1, 1, 1)
+		)
+	end
+end
+
 -- ------------------------------------------------------------
 -- Zonas
 -- ------------------------------------------------------------
@@ -139,7 +189,7 @@ local function buildZone(map: Folder, zone: number)
 	zoneFolder.Parent = map
 	local rng = Random.new(zone * 7919)
 
-	-- Piso a cuadros (3 columnas x 2 filas)
+	-- Piso a cuadros con relieve (3 columnas x 2 filas)
 	local cols, rows = 3, 2
 	for c = 0, cols - 1 do
 		for r = 0, rows - 1 do
@@ -148,30 +198,24 @@ local function buildZone(map: Folder, zone: number)
 				Size = Vector3.new(W / cols, 2, L / rows),
 				Position = Vector3.new(-W / 2 + W / cols * (c + 0.5), -1, startZ + L / rows * (r + 0.5)),
 				Color = Config.GetZoneColor(zone, (c + r + zone) % 2 == 0),
-				Material = biome.GroundMaterial,
+				Material = Enum.Material.SmoothPlastic,
+				TopSurface = Enum.SurfaceType.Studs,
 				Parent = zoneFolder,
 			})
 		end
 	end
 
-	-- Línea blanca al inicio de la zona y líneas laterales
-	makePart({
-		Name = "Linea",
-		Size = Vector3.new(W, 0.2, 1.2),
-		Position = Vector3.new(0, 0.1, startZ),
-		Color = Color3.new(1, 1, 1),
-		CanCollide = false,
-		Parent = zoneFolder,
-	})
+	-- Líneas blancas: inicio de zona, centro y costados
+	local white = Color3.new(1, 1, 1)
+	makePart({ Name = "Linea", Size = Vector3.new(W, 0.2, 1.2), Position = Vector3.new(0, 0.1, startZ), Color = white, CanCollide = false, Parent = zoneFolder })
+	makePart({ Name = "LineaCentro", Size = Vector3.new(1, 0.2, L), Position = Vector3.new(0, 0.1, startZ + L / 2), Color = white, Transparency = 0.2, CanCollide = false, Parent = zoneFolder })
+	if zone > 1 then
+		buildZoneArch(zoneFolder, zone, startZ, biome)
+	end
+
+	local builder = Decorations[biome.Decoration]
 	for side = -1, 1, 2 do
-		makePart({
-			Name = "LineaLateral",
-			Size = Vector3.new(1, 0.2, L),
-			Position = Vector3.new(side * (W / 2 - 0.5), 0.1, startZ + L / 2),
-			Color = Color3.new(1, 1, 1),
-			CanCollide = false,
-			Parent = zoneFolder,
-		})
+		makePart({ Name = "LineaLateral", Size = Vector3.new(1, 0.2, L), Position = Vector3.new(side * (W / 2 - 0.5), 0.1, startZ + L / 2), Color = white, CanCollide = false, Parent = zoneFolder })
 
 		-- Orilla con decoración
 		makePart({
@@ -179,86 +223,43 @@ local function buildZone(map: Folder, zone: number)
 			Size = Vector3.new(SIDE, 2, L),
 			Position = Vector3.new(side * (W / 2 + SIDE / 2), -0.6, startZ + L / 2),
 			Color = biome.GroundAlt:Lerp(Color3.new(0, 0, 0), 0.12),
-			Material = biome.GroundMaterial,
+			Material = Enum.Material.SmoothPlastic,
+			TopSurface = Enum.SurfaceType.Studs,
 			Parent = zoneFolder,
 		})
 
-		-- Paredes del cañón en dos escalones
-		makePart({
-			Name = "Pared",
-			Size = Vector3.new(12, 40, L),
-			Position = Vector3.new(side * (WALL_X + 6), 19, startZ + L / 2),
-			Color = biome.Wall,
-			Material = Enum.Material.Slate,
-			Parent = zoneFolder,
-		})
-		makePart({
-			Name = "Cima",
-			Size = Vector3.new(12.4, 3, L),
-			Position = Vector3.new(side * (WALL_X + 6), 40.5, startZ + L / 2),
-			Color = biome.WallTop,
-			Material = Enum.Material.Grass,
-			Parent = zoneFolder,
-		})
-		makePart({
-			Name = "Pared2",
-			Size = Vector3.new(16, 70, L),
-			Position = Vector3.new(side * (WALL_X + 20), 34, startZ + L / 2),
-			Color = biome.Wall:Lerp(Color3.new(0, 0, 0), 0.15),
-			Material = Enum.Material.Slate,
-			Parent = zoneFolder,
-		})
-		makePart({
-			Name = "Cima2",
-			Size = Vector3.new(16.4, 3, L),
-			Position = Vector3.new(side * (WALL_X + 20), 70.5, startZ + L / 2),
-			Color = biome.WallTop,
-			Material = Enum.Material.Grass,
-			Parent = zoneFolder,
-		})
+		-- Paredes del cañón en terrazas, con franjas de colores
+		local wall2 = biome.Wall:Lerp(Color3.new(0, 0, 0), 0.15)
+		makePart({ Name = "Pared", Size = Vector3.new(12, 40, L), Position = Vector3.new(side * (WALL_X + 6), 19, startZ + L / 2), Color = biome.Wall, Material = Enum.Material.SmoothPlastic, Parent = zoneFolder })
+		makePart({ Name = "Cima", Size = Vector3.new(12.6, 3, L), Position = Vector3.new(side * (WALL_X + 6), 40.5, startZ + L / 2), Color = biome.WallTop, Material = Enum.Material.SmoothPlastic, TopSurface = Enum.SurfaceType.Studs, Parent = zoneFolder })
+		makePart({ Name = "Pared2", Size = Vector3.new(16, 70, L), Position = Vector3.new(side * (WALL_X + 20), 34, startZ + L / 2), Color = wall2, Material = Enum.Material.SmoothPlastic, Parent = zoneFolder })
+		makePart({ Name = "Cima2", Size = Vector3.new(16.6, 3, L), Position = Vector3.new(side * (WALL_X + 20), 70.5, startZ + L / 2), Color = biome.WallTop, Material = Enum.Material.SmoothPlastic, TopSurface = Enum.SurfaceType.Studs, Parent = zoneFolder })
+		for _, y in { 10, 26 } do
+			makePart({ Name = "Franja", Size = Vector3.new(0.6, 3, L), Position = Vector3.new(side * (WALL_X - 0.2), y, startZ + L / 2), Color = biome.Wall:Lerp(Color3.new(1, 1, 1), 0.18), Material = Enum.Material.SmoothPlastic, Parent = zoneFolder })
+		end
+		makePart({ Name = "Franja", Size = Vector3.new(0.6, 3, L), Position = Vector3.new(side * (WALL_X + 11.8), 56, startZ + L / 2), Color = wall2:Lerp(Color3.new(1, 1, 1), 0.18), Material = Enum.Material.SmoothPlastic, Parent = zoneFolder })
 
-		-- Decoraciones en la orilla y arriba de la pared
-		local builder = Decorations[biome.Decoration]
+		-- Decoraciones: en la orilla, arriba de la pared y en la terraza de atrás
+		local spots = {}
+		for i = 1, 5 do
+			table.insert(spots, Vector3.new(side * (W / 2 + SIDE / 2 + rng:NextNumber(-6, 6)), 0.4, startZ + (i - 0.5) * L / 5 + rng:NextNumber(-5, 5)))
+		end
 		for i = 1, 3 do
-			local deco = Instance.new("Model")
-			deco.Name = biome.Decoration
-			local z = startZ + (i - 0.5) * L / 3 + rng:NextNumber(-8, 8)
-			builder(deco, Vector3.new(side * (W / 2 + SIDE / 2 + rng:NextNumber(-6, 6)), 0.4, z), rng)
-			deco.Parent = zoneFolder
+			table.insert(spots, Vector3.new(side * (WALL_X + 6), 42, startZ + (i - 0.5) * L / 3 + rng:NextNumber(-8, 8)))
 		end
 		for i = 1, 2 do
+			table.insert(spots, Vector3.new(side * (WALL_X + 20), 72, startZ + (i - 0.5) * L / 2 + rng:NextNumber(-10, 10)))
+		end
+		for _, spot in spots do
 			local deco = Instance.new("Model")
 			deco.Name = biome.Decoration
-			local z = startZ + (i - 0.5) * L / 2 + rng:NextNumber(-10, 10)
-			builder(deco, Vector3.new(side * (WALL_X + 6), 42, z), rng)
+			builder(deco, spot, rng)
 			deco.Parent = zoneFolder
 		end
+		for _ = 1, 4 do
+			smallDetail(zoneFolder, Vector3.new(side * (W / 2 + rng:NextNumber(3, SIDE - 3)), 0.4, startZ + rng:NextNumber(2, L - 2)), rng, biome)
+		end
 	end
-
-	-- Cartel flotante con el número de zona y su suerte
-	local anchor = makePart({
-		Name = "Cartel",
-		Size = Vector3.new(1, 1, 1),
-		Position = Vector3.new(0, 30, startZ + 2),
-		Transparency = 1,
-		CanCollide = false,
-		CanQuery = false,
-		CanTouch = false,
-		Parent = zoneFolder,
-	})
-	local billboard = Instance.new("BillboardGui")
-	billboard.Size = UDim2.fromScale(40, 16) -- en studs: se ve más chico de lejos
-	billboard.LightInfluence = 0
-	billboard.MaxDistance = 2500
-	billboard.Parent = anchor
-	makeLabel(billboard, "ZONA " .. zone, UDim2.fromScale(1, 0.6), UDim2.fromScale(0, 0), Color3.new(1, 1, 1))
-	makeLabel(
-		billboard,
-		"🍀 x" .. Config.FormatLuck(Config.GetLuck(zone)),
-		UDim2.fromScale(1, 0.4),
-		UDim2.fromScale(0, 0.6),
-		Color3.fromRGB(120, 255, 140)
-	)
 end
 
 local function buildGoal(map: Folder)
@@ -456,6 +457,186 @@ local function buildPen(map: Folder, index: number, center: Vector3)
 	return pen
 end
 
+-- Puesto con toldo a rayas (Tienda / Índice). `facing` es hacia dónde mira el mostrador.
+local function buildStall(parent: Instance, pos: Vector3, facing: Vector3, stripe: Color3, title: string, promptName: string, action: string)
+	local model = Instance.new("Model")
+	model.Name = promptName
+	local base = CFrame.lookAt(pos, pos + facing)
+	local function piece(size: Vector3, offset: CFrame, color: Color3, material: Enum.Material?): Part
+		return makePart({ Size = size, CFrame = base * offset, Color = color, Material = material or Enum.Material.SmoothPlastic, TopSurface = Enum.SurfaceType.Studs, Parent = model })
+	end
+	local counter = piece(Vector3.new(14, 4, 4), CFrame.new(0, 2, -2), WOOD, Enum.Material.Wood)
+	piece(Vector3.new(14.6, 0.6, 4.6), CFrame.new(0, 4.3, -2), WOOD:Lerp(Color3.new(1, 1, 1), 0.25), Enum.Material.Wood)
+	for _, x in { -6.5, 6.5 } do
+		for _, z in { -3.5, 3.5 } do
+			piece(Vector3.new(1, 10, 1), CFrame.new(x, 5, z), Color3.new(1, 1, 1))
+		end
+	end
+	piece(Vector3.new(14, 8, 0.6), CFrame.new(0, 4, 3.8), stripe:Lerp(Color3.new(0, 0, 0), 0.3))
+	-- toldo a rayas
+	for i = 0, 6 do
+		piece(
+			Vector3.new(2, 0.5, 10),
+			CFrame.new(-6 + i * 2, 10.6, -0.5) * CFrame.Angles(math.rad(-14), 0, 0), -- más bajo adelante
+			if i % 2 == 0 then stripe else Color3.new(1, 1, 1)
+		)
+	end
+	-- letrero arriba
+	local sign = piece(Vector3.new(12, 3.2, 0.6), CFrame.new(0, 13.4, 2), Color3.fromRGB(30, 30, 40))
+	for _, face in { Enum.NormalId.Front, Enum.NormalId.Back } do
+		local surface = Instance.new("SurfaceGui")
+		surface.Face = face
+		surface.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		surface.PixelsPerStud = 30
+		surface.LightInfluence = 0
+		surface.Parent = sign
+		makeLabel(surface, title, UDim2.fromScale(0.95, 0.9), UDim2.fromScale(0.025, 0.05), Color3.fromRGB(255, 230, 80))
+	end
+	local prompt = Instance.new("ProximityPrompt")
+	prompt.Name = promptName
+	prompt.ActionText = action
+	prompt.ObjectText = title
+	prompt.KeyboardKeyCode = Enum.KeyCode.E
+	prompt.MaxActivationDistance = 14
+	prompt.RequiresLineOfSight = false
+	prompt.Parent = counter
+	model.Parent = parent
+end
+
+local RAINBOW = {
+	Color3.fromRGB(255, 70, 70),
+	Color3.fromRGB(255, 160, 40),
+	Color3.fromRGB(255, 230, 60),
+	Color3.fromRGB(80, 220, 90),
+	Color3.fromRGB(70, 160, 255),
+	Color3.fromRGB(180, 90, 255),
+}
+
+-- Banderitas de colores colgando sobre el camino
+local function buildBunting(parent: Instance, z: number, halfWidth: number)
+	for side = -1, 1, 2 do
+		makePart({ Name = "Poste", Size = Vector3.new(1.2, 16, 1.2), Position = Vector3.new(side * halfWidth, 8, z), Color = Color3.new(1, 1, 1), TopSurface = Enum.SurfaceType.Studs, Parent = parent })
+	end
+	makePart({ Name = "Cuerda", Size = Vector3.new(halfWidth * 2, 0.2, 0.2), Position = Vector3.new(0, 15.5, z), Color = Color3.fromRGB(80, 60, 40), CanCollide = false, Parent = parent })
+	local count = math.floor(halfWidth * 2 / 3)
+	for i = 1, count - 1 do
+		local x = -halfWidth + i * (halfWidth * 2 / count)
+		makePart({
+			Name = "Banderita",
+			Size = Vector3.new(0.2, 1.6, 1.6),
+			CFrame = CFrame.new(x, 14.6, z) * CFrame.Angles(0, math.rad(90), 0) * CFrame.Angles(math.rad(45), 0, 0),
+			Color = RAINBOW[(i - 1) % #RAINBOW + 1],
+			CanCollide = false,
+			Parent = parent,
+		})
+	end
+end
+
+local function buildLamp(parent: Instance, pos: Vector3)
+	makePart({ Name = "Farol", Size = Vector3.new(0.9, 12, 0.9), Position = pos + Vector3.new(0, 6, 0), Color = Color3.fromRGB(50, 55, 70), Parent = parent })
+	makePart({ Name = "Base", Size = Vector3.new(2.4, 1, 2.4), Position = pos + Vector3.new(0, 0.5, 0), Color = Color3.fromRGB(50, 55, 70), TopSurface = Enum.SurfaceType.Studs, Parent = parent })
+	local bulb = makePart({ Name = "Foco", Shape = Enum.PartType.Ball, Size = Vector3.new(2.4, 2.4, 2.4), Position = pos + Vector3.new(0, 12.8, 0), Color = Color3.fromRGB(255, 230, 150), Material = Enum.Material.Neon, Parent = parent })
+	local light = Instance.new("PointLight")
+	light.Color = Color3.fromRGB(255, 220, 160)
+	light.Range = 22
+	light.Brightness = 1.5
+	light.Parent = bulb
+end
+
+local function buildBush(parent: Instance, pos: Vector3, rng: Random)
+	local green = Color3.fromRGB(rng:NextInteger(50, 80), rng:NextInteger(170, 210), rng:NextInteger(50, 70))
+	for _ = 1, 3 do
+		local size = rng:NextNumber(3.5, 5.5)
+		makePart({ Name = "Arbusto", Shape = Enum.PartType.Ball, Size = Vector3.new(size, size, size), Position = pos + Vector3.new(rng:NextNumber(-2, 2), size / 2 - 0.5, rng:NextNumber(-2, 2)), Color = green, Parent = parent })
+	end
+end
+
+-- Monumento: balón gigante sobre un pedestal
+local function buildMonument(parent: Instance, pos: Vector3)
+	makePart({ Name = "Pedestal", Size = Vector3.new(16, 4, 16), Position = pos + Vector3.new(0, 2, 0), Color = Color3.fromRGB(240, 240, 245), TopSurface = Enum.SurfaceType.Studs, Parent = parent })
+	makePart({ Name = "Pedestal", Size = Vector3.new(12, 4, 12), Position = pos + Vector3.new(0, 6, 0), Color = Color3.fromRGB(255, 200, 50), Material = Enum.Material.Foil, TopSurface = Enum.SurfaceType.Studs, Parent = parent })
+	local center = pos + Vector3.new(0, 15, 0)
+	makePart({ Name = "BalonGigante", Shape = Enum.PartType.Ball, Size = Vector3.new(14, 14, 14), Position = center, Color = Color3.new(1, 1, 1), Parent = parent })
+	for _, dir in { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 1, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1), Vector3.new(0.7, 0.7, 0), Vector3.new(-0.7, 0.7, 0), Vector3.new(0, 0.7, 0.7), Vector3.new(0, 0.7, -0.7) } do
+		makePart({ Name = "Mancha", Shape = Enum.PartType.Ball, Size = Vector3.new(4.5, 4.5, 4.5), Position = center + dir.Unit * 5.4, Color = Color3.fromRGB(25, 25, 30), CanCollide = false, Parent = parent })
+	end
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(40, 9)
+	billboard.StudsOffset = Vector3.new(0, 13, 0)
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 400
+	billboard.Parent = parent:FindFirstChild("BalonGigante")
+	local title = makeLabel(billboard, "⚽ PATEA EL BALÓN", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(1, 1, 1))
+	local gradient = Instance.new("UIGradient")
+	gradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 220, 60)),
+		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 140, 40)),
+		ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 80, 120)),
+	})
+	gradient.Parent = title
+end
+
+-- Colinas a cuadros detrás de las paredes con árboles arriba
+local function buildHills(parent: Instance, rng: Random)
+	local hills = {
+		{ Size = Vector3.new(320, 80, 30), Position = Vector3.new(0, 38, -205) },
+		{ Size = Vector3.new(400, 105, 40), Position = Vector3.new(0, 50, -240) },
+		{ Size = Vector3.new(40, 85, 230), Position = Vector3.new(-150, 40, -95) },
+		{ Size = Vector3.new(40, 85, 230), Position = Vector3.new(150, 40, -95) },
+		{ Size = Vector3.new(50, 110, 300), Position = Vector3.new(-195, 53, -110) },
+		{ Size = Vector3.new(50, 110, 300), Position = Vector3.new(195, 53, -110) },
+	}
+	for i, hill in hills do
+		makePart({ Name = "Colina", Size = hill.Size, Position = hill.Position, Color = DIRT:Lerp(Color3.new(0, 0, 0), (i % 2) * 0.1), Material = Enum.Material.SmoothPlastic, Parent = parent })
+		local top = hill.Position.Y + hill.Size.Y / 2
+		makePart({ Name = "Pasto", Size = Vector3.new(hill.Size.X + 1, 4, hill.Size.Z + 1), Position = Vector3.new(hill.Position.X, top + 2, hill.Position.Z), Color = if i % 2 == 0 then GRASS_A else GRASS_TOP, Material = Enum.Material.SmoothPlastic, TopSurface = Enum.SurfaceType.Studs, Parent = parent })
+		local trees = math.floor(math.max(hill.Size.X, hill.Size.Z) / 45)
+		for _ = 1, trees do
+			local tree = Instance.new("Model")
+			tree.Name = "Arbol"
+			local offset = Vector3.new(rng:NextNumber(-0.4, 0.4) * hill.Size.X, 0, rng:NextNumber(-0.4, 0.4) * hill.Size.Z)
+			Decorations.Arbol(tree, Vector3.new(hill.Position.X, top + 4, hill.Position.Z) + offset, rng)
+			tree.Parent = parent
+		end
+	end
+end
+
+local function decorateLobby(lobby: Instance, rng: Random)
+	-- Camino de baldosas naranjas y amarillas del spawn al punto de patada
+	local tile = 12
+	for row = 0, 11 do
+		for col = 0, 1 do
+			makePart({
+				Name = "Camino",
+				Size = Vector3.new(tile, 0.2, tile),
+				Position = Vector3.new(-tile / 2 + col * tile, 0.1, -10 - tile * (row + 0.5)),
+				Color = if (row + col) % 2 == 0 then Color3.fromRGB(255, 160, 45) else Color3.fromRGB(255, 205, 70),
+				Material = Enum.Material.SmoothPlastic,
+				TopSurface = Enum.SurfaceType.Studs,
+				Parent = lobby,
+			})
+		end
+	end
+	for _, z in { -30, -62, -94, -126 } do
+		buildBunting(lobby, z, 18)
+	end
+	for _, z in { -46, -78, -110, -142 } do
+		buildLamp(lobby, Vector3.new(-18, 0, z))
+		buildLamp(lobby, Vector3.new(18, 0, z))
+	end
+	buildStall(lobby, Vector3.new(-32, 0, -160), Vector3.new(1, 0, 0.4), Color3.fromRGB(230, 60, 70), "🛒 TIENDA", "AbrirTienda", "Abrir tienda")
+	buildStall(lobby, Vector3.new(32, 0, -160), Vector3.new(-1, 0, 0.4), Color3.fromRGB(60, 120, 240), "📖 ÍNDICE", "AbrirIndice", "Ver índice")
+	buildMonument(lobby, Vector3.new(0, 0, -170))
+	for _, x in { -104, 104 } do
+		for z = -20, -170, -25 do
+			buildBush(lobby, Vector3.new(x, 0, z), rng)
+		end
+	end
+	for _, x in { -60, -82, 60, 82 } do
+		buildBush(lobby, Vector3.new(x, 0, -174), rng)
+	end
+end
+
 local function buildLobby(map: Folder)
 	local lobby = Instance.new("Folder")
 	lobby.Name = "Lobby"
@@ -501,7 +682,7 @@ local function buildLobby(map: Folder)
 	end
 
 	-- Árboles y flores
-	for _, pos in { Vector3.new(-30, 0, -170), Vector3.new(30, 0, -170), Vector3.new(-100, 0, -172), Vector3.new(100, 0, -172), Vector3.new(-40, 0, -100), Vector3.new(40, 0, -100) } do
+	for _, pos in { Vector3.new(-100, 0, -172), Vector3.new(100, 0, -172), Vector3.new(40, 0, -100), Vector3.new(-40, 0, -100) } do
 		local tree = Instance.new("Model")
 		tree.Name = "Arbol"
 		Decorations.Arbol(tree, pos, rng)
@@ -510,6 +691,9 @@ local function buildLobby(map: Folder)
 	for _, pos in { Vector3.new(-25, 0, -60), Vector3.new(25, 0, -60), Vector3.new(-25, 0, -130), Vector3.new(25, 0, -130), Vector3.new(-12, 0, -20), Vector3.new(12, 0, -20) } do
 		flowers(lobby, pos, rng)
 	end
+
+	decorateLobby(lobby, rng)
+	buildHills(lobby, rng)
 
 	-- Corrales
 	for index, center in MapBuilder.PEN_CENTERS do

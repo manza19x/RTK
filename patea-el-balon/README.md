@@ -24,7 +24,7 @@ Para que **se guarde el progreso**:
 | Futbolistas | Al caer el balón se sortea uno. Llega caminando, su nombre aparece letra por letra y ves si es **¡NUEVO!** y cuánto gana por segundo. La suerte divide la dificultad: con suerte x10, "1 en 1.000" se vuelve "1 en 100". |
 | Plantilla ⚽ | Tus futbolistas te dan monedas **cada segundo**. Empiezas con 8 espacios y puedes comprar más. Si está llena, te quedas con los mejores y el peor se vende solo. También puedes vender a mano. |
 | Tu corral 🐾 | Cada jugador tiene un corral en el lobby (hay 6) con su nombre. Ahí caminan sus futbolistas. El dinero se junta en el **plato dorado** de la entrada y se cobra al pisarlo. En el **cartel de madera** presionas **E** para comprar más espacios. |
-| Tienda 🛒 | 12 balones, del Trapo (x1 de distancia) al Galáctico (x8). |
+| Tienda 🛒 | 12 balones, del Trapo (x1 de distancia) al Galáctico (x8). Se abre con el botón o en el puesto rojo del lobby (tecla **E**). El puesto azul abre el Índice. |
 | Índice 📖 | Los futbolistas que ya descubriste y cuántas veces te salió cada uno. |
 
 Según una simulación, se llega a la zona 10 en unos 45 minutos, a la 20 en unos 85 y a la 30 en unas 2 horas.

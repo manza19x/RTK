@@ -5,6 +5,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local ProximityPromptService = game:GetService("ProximityPromptService")
+local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
@@ -106,6 +108,10 @@ local function button(props: { [string]: any }, color: Color3): TextButton
 	end
 	return create("TextButton", defaults, {
 		corner(10),
+		create("UIGradient", {
+			Rotation = 90,
+			Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(190, 190, 190)),
+		}),
 		create("UIPadding", {
 			PaddingTop = UDim.new(0, 5),
 			PaddingBottom = UDim.new(0, 5),
@@ -836,6 +842,76 @@ local function spawnFootballer(f: Config.Footballer, landing: Vector3): Model?
 	return model
 end
 
+-- Efectos donde cae el balón: polvo, confeti y un rayo de luz para los raros
+local CONFETTI = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
+	ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 220, 60)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 220, 90)),
+	ColorSequenceKeypoint.new(0.75, Color3.fromRGB(70, 160, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 90, 255)),
+})
+
+local function landingEffects(landing: Vector3, rarity: Config.Rarity)
+	local holder = create("Part", {
+		Anchored = true,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Transparency = 1,
+		Size = Vector3.one,
+		Position = landing + Vector3.new(0, 1, 0),
+		Parent = workspace,
+	})
+	local dust = create("ParticleEmitter", {
+		Color = ColorSequence.new(Color3.fromRGB(235, 225, 210)),
+		Size = NumberSequence.new(2.5, 5),
+		Transparency = NumberSequence.new(0.3, 1),
+		Lifetime = NumberRange.new(0.6, 1.1),
+		Speed = NumberRange.new(8, 14),
+		SpreadAngle = Vector2.new(180, 10),
+		Rate = 0,
+		Parent = holder,
+	})
+	dust:Emit(25)
+	local confetti = create("ParticleEmitter", {
+		Color = CONFETTI,
+		Size = NumberSequence.new(0.5),
+		Lifetime = NumberRange.new(2, 3),
+		Speed = NumberRange.new(25, 45),
+		SpreadAngle = Vector2.new(35, 35),
+		Acceleration = Vector3.new(0, -35, 0),
+		Drag = 1.5,
+		Rotation = NumberRange.new(0, 360),
+		RotSpeed = NumberRange.new(-300, 300),
+		LightEmission = 0.3,
+		Rate = 0,
+		Parent = holder,
+	})
+	confetti:Emit(40 + rarity.Order * 20)
+	Debris:AddItem(holder, 4)
+
+	if rarity.Order >= Config.Rarities.Epico.Order then
+		local beam = create("Part", {
+			Anchored = true,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Shape = Enum.PartType.Cylinder,
+			Material = Enum.Material.Neon,
+			Color = rarity.Color,
+			Transparency = 0.35,
+			Size = Vector3.new(400, 8, 8),
+			CFrame = CFrame.new(landing + Vector3.new(0, 200, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+			Parent = workspace,
+		})
+		TweenService:Create(beam, TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+			Transparency = 1,
+			Size = Vector3.new(400, 1, 1),
+		}):Play()
+		Debris:AddItem(beam, 3.2)
+	end
+end
+
 -- Mayúsculas que también entienden los acentos (string.upper solo cambia a-z)
 local ACCENTS = { ["á"] = "Á", ["é"] = "É", ["í"] = "Í", ["ó"] = "Ó", ["ú"] = "Ú", ["ñ"] = "Ñ", ["ü"] = "Ü" }
 local function upperSpanish(text: string): string
@@ -1112,6 +1188,7 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 	TweenService:Create(camera, TweenInfo.new(2.2, Enum.EasingStyle.Sine), { CFrame = camTo }):Play()
 
 	flightHud.Visible = false
+	landingEffects(landing, rarity)
 	revealModel = spawnFootballer(f, landing)
 
 	-- Textos
@@ -1171,6 +1248,18 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 			finishKick(myKick)
 		end)
 	end)
+end)
+
+-- Los puestos del lobby abren la tienda y el índice
+ProximityPromptService.PromptTriggered:Connect(function(prompt)
+	if kicking then
+		return
+	end
+	if prompt.Name == "AbrirTienda" and openWindow ~= shopWindow then
+		toggleWindow(shopWindow)
+	elseif prompt.Name == "AbrirIndice" and openWindow ~= indexWindow then
+		toggleWindow(indexWindow)
+	end
 end)
 
 NotifyEvent.OnClientEvent:Connect(function(text: string, color: Color3?)
