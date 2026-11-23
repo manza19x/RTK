@@ -180,56 +180,121 @@ local incomeStat = statLabel(3, COLORS.Muted, 26)
 -- ============================================================
 -- Barra de poder vertical + botón de patear (abajo al centro)
 -- ============================================================
+local BAR_HEIGHT = 300
+local BAR_INNER = BAR_HEIGHT - 10
 local kickArea = create("Frame", {
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, -14),
-	Size = UDim2.new(0, 260, 0, 320),
+	Size = UDim2.new(0, 300, 0, BAR_HEIGHT + 76),
 	BackgroundTransparency = 1,
 	Parent = hud,
 })
 
+-- Tubo con borde negro grueso
 local barBack = create("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0),
 	Position = UDim2.new(0.5, 0, 0, 0),
-	Size = UDim2.new(0, 54, 0, 230),
-	BackgroundColor3 = Color3.new(1, 1, 1),
+	Size = UDim2.new(0, 72, 0, BAR_HEIGHT),
+	BackgroundColor3 = Color3.fromRGB(40, 34, 52),
+	BackgroundTransparency = 0.2,
 	Parent = kickArea,
 }, {
-	corner(14),
-	stroke(Color3.new(0, 0, 0), 3),
+	corner(24),
+	stroke(Color3.fromRGB(15, 12, 20), 5),
+})
+
+-- Tapa de arriba: la zona de "¡PERFECTO!"
+local capHeight = math.floor(BAR_INNER * (1 - Config.PERFECT_THRESHOLD))
+create("Frame", {
+	Position = UDim2.new(0, 5, 0, 5),
+	Size = UDim2.new(1, -10, 0, capHeight),
+	BackgroundColor3 = Color3.fromRGB(185, 255, 165),
+	ZIndex = 1,
+	Parent = barBack,
+}, { corner(20) })
+
+-- Relleno que sube y baja (los colores quedan fijos: rojo abajo, verde arriba)
+local fill = create("Frame", {
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 5, 1, -5),
+	Size = UDim2.new(1, -10, 0, 0),
+	BackgroundTransparency = 1,
+	ClipsDescendants = true,
+	ZIndex = 2,
+	Parent = barBack,
+})
+create("Frame", {
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 0, 1, 0),
+	Size = UDim2.new(1, 0, 0, BAR_INNER),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+	ZIndex = 2,
+	Parent = fill,
+}, {
+	corner(20),
 	create("UIGradient", {
-		Rotation = 270, -- de abajo (rojo) hacia arriba (verde)
+		Rotation = 270, -- de abajo hacia arriba
 		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(230, 60, 50)),
-			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(250, 210, 50)),
-			ColorSequenceKeypoint.new(0.89, Color3.fromRGB(90, 220, 90)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(90, 220, 90)),
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(235, 55, 45)),
+			ColorSequenceKeypoint.new(0.3, Color3.fromRGB(255, 140, 40)),
+			ColorSequenceKeypoint.new(0.55, Color3.fromRGB(255, 215, 50)),
+			ColorSequenceKeypoint.new(0.8, Color3.fromRGB(140, 225, 70)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(80, 220, 90)),
 		}),
 	}),
 })
--- Zona "PERFECTO" arriba
+
+-- Rayitas de segmentos
+for i = 1, 9 do
+	create("Frame", {
+		Position = UDim2.new(0, 5, i / 10, 0),
+		Size = UDim2.new(1, -10, 0, 3),
+		BackgroundColor3 = Color3.fromRGB(20, 15, 25),
+		BackgroundTransparency = 0.55,
+		BorderSizePixel = 0,
+		ZIndex = 3,
+		Parent = barBack,
+	})
+end
+
+-- Brillo cuando estás en la zona perfecta
+local capGlow = create("Frame", {
+	Position = UDim2.new(0, 5, 0, 5),
+	Size = UDim2.new(1, -10, 0, capHeight),
+	BackgroundColor3 = Color3.fromRGB(240, 255, 220),
+	BackgroundTransparency = 1,
+	ZIndex = 4,
+	Parent = barBack,
+}, { corner(20) })
+
+-- Reflejo de vidrio
 create("Frame", {
-	Size = UDim2.fromScale(1, 1 - Config.PERFECT_THRESHOLD),
-	BackgroundColor3 = COLORS.Gold,
-	Parent = barBack,
-}, {
-	corner(14),
-	textLabel({ Size = UDim2.fromScale(1, 1), Text = "★" }),
-})
-local needle = create("Frame", {
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 1),
-	Size = UDim2.new(1, 18, 0, 8),
+	Position = UDim2.new(0, 12, 0, 18),
+	Size = UDim2.new(0, 9, 1, -36),
 	BackgroundColor3 = Color3.new(1, 1, 1),
-	ZIndex = 3,
+	BackgroundTransparency = 0.65,
+	ZIndex = 5,
 	Parent = barBack,
-}, { corner(4), stroke(Color3.new(0, 0, 0), 2) })
+}, { corner(5) })
+
+-- "+N": el poder que ganarías si pateas ahora
+local gainPreview = textLabel({
+	AnchorPoint = Vector2.new(0, 0.5),
+	Position = UDim2.new(0.5, 46, 0, 22),
+	Size = UDim2.new(0, 100, 0, 52),
+	Text = "+1",
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextStrokeTransparency = 0,
+	ZIndex = 5,
+	Parent = kickArea,
+})
+create("UIStroke", { Thickness = 3, Color = Color3.fromRGB(15, 12, 20), Parent = gainPreview })
 
 local kickButton = button({
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, 0),
-	Size = UDim2.new(1, 0, 0, 70),
-	Text = "⚽ PATEAR (clic o F)",
+	Size = UDim2.new(0, 220, 0, 62),
+	Text = "⚽ ¡PATEA! (clic o F)",
 	Parent = kickArea,
 }, COLORS.Green)
 stroke(COLORS.GreenDark, 3).Parent = kickButton
@@ -2011,7 +2076,11 @@ RunService.RenderStepped:Connect(function(dt)
 		needleTime += dt
 		-- Onda triangular: 0 -> 1 -> 0
 		needleValue = 1 - math.abs((needleTime / NEEDLE_PERIOD) % 2 - 1)
-		needle.Position = UDim2.fromScale(0.5, 1 - needleValue)
+		fill.Size = UDim2.new(1, -10, 0, BAR_INNER * needleValue)
+		local perfect = needleValue >= Config.PERFECT_THRESHOLD
+		capGlow.BackgroundTransparency = if perfect then 0.25 + 0.2 * math.sin(os.clock() * 20) else 1
+		gainPreview.Text = "+" .. Config.GetPowerGain(needleValue)
+		gainPreview.TextColor3 = if perfect then COLORS.Gold else Color3.new(1, 1, 1)
 	end
 
 	local ball = flyingBall
