@@ -18,7 +18,9 @@ Para que **se guarde el progreso**:
 
 | Qué | Cómo |
 | --- | --- |
-| Patear | Camina hasta el arco y **cruza la línea blanca**: aparece la barra de poder. Haz **clic** (o tecla **F**, o el botón) cuando la barra esté arriba, en la parte dorada (★), para una patada **¡PERFECTO!**: va 15% más lejos y da el doble de poder. Después de patear vuelves atrás de la línea. |
+| Patear | Camina hasta el arco y **cruza la línea blanca**: tu personaje **agarra el balón con las manos** y aparece la barra de poder. Haz **clic** (o tecla **F**, o el botón) cuando la barra esté arriba, en la parte dorada (★), para una patada **¡PERFECTO!**: va 15% más lejos y da el doble de poder. El personaje suelta el balón y lo patea. Después vuelves atrás de la línea. |
+| Chilena ⚡ | Cada patada tiene **5%** de probabilidad de ser una **chilena**: lanza el balón hacia arriba, da una vuelta hacia atrás y patea por encima de la cabeza. Va 25% más lejos y da el doble de poder. |
+| Espacio 🚀 | Si tu patada llegaría a más de **4.000 m**, el balón sube al **espacio**, revienta los 5 planetas del cielo y cae al final con **suerte x3** y **monedas x3**. |
 | Gimnasio 🏋️ | Al fondo del lobby, detrás del monumento. Párate en el tapete de un aparato y presiona **E**. Cada **clic** te da poder (una repetición cada 0,8 s); con **🔁 Auto** entrena solo. Hay 6 aparatos: Mancuernas (+1), Sentadillas (+2, requiere 200), Prensa de piernas (+3, requiere 800), Saco de patadas (+5, requiere 2.000), Llantas gigantes (+8, requiere 4.000) y Máquina dorada (+12, requiere 7.000). Sales con **Q**. |
 | Poder 💪 | Cada patada te da de +1 a +10 de poder, y el gimnasio te da mucho más. Más poder hace que el balón llegue más lejos. |
 | Zonas 🗺️ | 30 zonas de 100 m. Cada una tiene un escenario distinto a los lados, y van mejorando mientras más lejos llegas: **Barrios** (de tierra, humilde, colorido, con canchita, colonia), **Ciudad** (calle comercial, avenida, parque, centro, rascacielos), **Playa** (playa, malecón, hoteles, puerto de yates, resort), **Fútbol** (escuela, estadio de barrio, de ciudad, profesional y gran estadio), **Lujo** (mansiones, autos de lujo, castillos, ciudad dorada, salón de trofeos) y **Leyenda** (sobre las nubes, arcoíris, la Luna, galaxia y el Salón de la Fama). La suerte sube mientras el balón vuela: x1,25 a 100 m, x9 a 1.000 m, x87 a 2.000 m y x807 a 3.000 m. |
@@ -29,6 +31,20 @@ Para que **se guarde el progreso**:
 | Índice 📖 | Los futbolistas que ya descubriste y cuántas veces te salió cada uno. |
 
 Según una simulación (pateando y entrenando), se llega a la zona 10 en unos 47 minutos, a la 20 en unos 80 y a la 30 en 1 hora 40. Si solo pateas sin entrenar, es mucho más lento.
+
+## Administrador 👑
+
+El dueño del juego (quien lo publicó) tiene un letrero **👑 OWNER** arriba de la cabeza y un botón **🛠️ Admin**. En Roblox Studio, todos los que prueban son OWNER. Para agregar a otra persona, pon su UserId en `Config.OWNER_USER_IDS`.
+
+Desde el panel puedes, para ti o para otro jugador:
+- dar monedas o poder,
+- darle el mejor balón o todos los espacios,
+- darle cualquier futbolista,
+- teletransportarlo a una zona,
+- hacer que su próxima patada sea una chilena o vaya al espacio,
+- reiniciar sus datos.
+
+También puedes activar **suerte x2 para todos** y mandar **anuncios** al servidor. Los anuncios pasan por el filtro de texto de Roblox.
 
 ## Cómo cambiar cosas
 
@@ -41,6 +57,9 @@ Casi todo está en **`src/shared/Config.luau`** (en Studio: *ReplicatedStorage >
 - `START_POWER`, `DISTANCE_PER_POWER`, `GetPowerGain`: poder y distancia.
 - `Config.TrainingStations`, `TRAIN_COOLDOWN`: aparatos del gimnasio, cuánto poder dan y cuánto piden.
 - `KICK_LINE_Z`, `RETURN_POSITION`: dónde está la línea de patada y a dónde vuelves.
+- `CHILENA_CHANCE`, `CHILENA_BONUS`: probabilidad y premio de la chilena.
+- `SPACE_DISTANCE`, `SPACE_LUCK_BONUS`, `SPACE_COINS_BONUS`: cuándo se va al espacio y su premio.
+- `OWNER_USER_IDS`: quién más es administrador.
 - `START_SLOTS`, `GetSlotCost`, `SELL_SECONDS`: plantilla y precios de venta.
 
 > **Ojo con los nombres reales:** los futbolistas usan nombres reales de jugadores. Para jugar con amigos no hay problema, pero si vas a publicar el juego con ganancias (Robux), Roblox puede moderarlo por usar nombres de personas reales sin permiso. Se cambian en `Config.Footballers`.
@@ -54,7 +73,8 @@ src/server/MapBuilder.luau      -> construye el lobby, los corrales, el gimnasio
 src/server/Scenery.luau         -> los 30 escenarios de los lados (barrios, ciudad, playa, estadios...)
 src/server/PlotManager.luau     -> corrales: futbolistas, plato para cobrar y cartel de mejora
 src/server/DataManager.luau     -> guarda monedas, poder, balón, plantilla e índice
-src/client/Main.client.luau     -> StarterPlayerScripts.Client.Main (interfaz, cámara y revelación)
+src/client/Main.client.luau     -> StarterPlayerScripts.Client.Main (interfaz, cámara, revelación y panel de admin)
+src/client/KickAnimation.luau   -> animaciones de agarrar el balón, patear y la chilena
 ```
 
 El mapa se construye solo cuando le das **Play**. En el editor no se ve, y es normal. No pongas cosas dentro de la carpeta `Mapa` porque se vuelve a crear al iniciar; si quieres decorar, hazlo en otra carpeta del Workspace.

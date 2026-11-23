@@ -128,6 +128,50 @@ function Config.IsInKickZone(position: Vector3): boolean
 		and position.Y < 20
 end
 
+-- Animación de patada: el jugador se para aquí con el balón en las manos
+Config.KICK_STAND = Vector3.new(0, 3, -2.4)
+Config.KICK_ORIGIN = Vector3.new(0, 1.5, 0) -- de donde sale el balón
+Config.KICK_CONTACT_TIME = 0.33 -- segundos hasta que el pie toca el balón
+Config.KICK_ANIMATION_TIME = 0.75
+
+-- Chilena: a veces el jugador hace una chilena (va más lejos y da más poder)
+Config.CHILENA_CHANCE = 0.05 -- 5%
+Config.CHILENA_BONUS = 1.25 -- 25% más lejos
+Config.CHILENA_ORIGIN = Vector3.new(0, 6.5, -1.6)
+Config.CHILENA_CONTACT_TIME = 0.62
+Config.CHILENA_ANIMATION_TIME = 1.3
+
+-- ------------------------------------------------------------
+-- ESPACIO: si tu patada llegaría muy lejos, el balón sube al espacio,
+-- rompe todos los planetas y cae al final con suerte extra.
+-- ------------------------------------------------------------
+Config.SPACE_DISTANCE = 4000 -- metros que tendría que llegar tu patada
+Config.SPACE_APEX = 900 -- altura máxima del balón
+Config.SPACE_LUCK_BONUS = 3 -- suerte x3
+Config.SPACE_COINS_BONUS = 3 -- monedas x3
+Config.SPACE_PLANET_STOPS = { 0.3, 0.4, 0.5, 0.6, 0.7 } -- en qué parte del vuelo están los planetas
+
+-- Velocidad vertical, velocidad hacia adelante y duración del vuelo al espacio
+function Config.GetSpaceFlight(gravity: number): (number, number, number)
+	local vy = math.sqrt(2 * gravity * Config.SPACE_APEX)
+	local duration = 2 * vy / gravity
+	return vy, Config.MAX_DISTANCE / duration, duration
+end
+
+-- Dónde está el balón en el vuelo al espacio (alpha = 0 al patear, 1 al caer)
+function Config.GetSpacePoint(alpha: number, gravity: number): Vector3
+	local vy, vz, duration = Config.GetSpaceFlight(gravity)
+	local t = alpha * duration
+	return Config.KICK_ORIGIN + Vector3.new(0, vy * t - gravity * t * t / 2, vz * t)
+end
+
+-- ------------------------------------------------------------
+-- ADMINISTRADOR
+-- El dueño del juego (quien lo publicó) es OWNER automáticamente, y en Studio
+-- todos los que prueban son OWNER. Para agregar a alguien más, pon su UserId aquí.
+-- ------------------------------------------------------------
+Config.OWNER_USER_IDS = {} :: { number }
+
 -- ------------------------------------------------------------
 -- GIMNASIO: estaciones para entrenar las piernas
 -- Cada repetición da `Gain` de poder. Necesitas `Required` de poder para usarla.

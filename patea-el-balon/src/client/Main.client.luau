@@ -9,6 +9,7 @@ local ProximityPromptService = game:GetService("ProximityPromptService")
 local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local KickAnimation = require(script.Parent:WaitForChild("KickAnimation"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local Assets = ReplicatedStorage:WaitForChild("Assets")
 local KickEvent = Remotes:WaitForChild("Kick") :: RemoteEvent
@@ -19,6 +20,9 @@ local DataUpdatedEvent = Remotes:WaitForChild("DataUpdated") :: RemoteEvent
 local GetDataFunction = Remotes:WaitForChild("GetData") :: RemoteFunction
 local PurchaseFunction = Remotes:WaitForChild("Purchase") :: RemoteFunction
 local NotifyEvent = Remotes:WaitForChild("Notify") :: RemoteEvent
+local KickStartEvent = Remotes:WaitForChild("KickStart") :: RemoteEvent
+local SpaceKickEvent = Remotes:WaitForChild("SpaceKick") :: RemoteEvent
+local AdminFunction = Remotes:WaitForChild("Admin") :: RemoteFunction
 local StartTrainingFunction = Remotes:WaitForChild("StartTraining") :: RemoteFunction
 local TrainEvent = Remotes:WaitForChild("Train") :: RemoteEvent
 local StopTrainingEvent = Remotes:WaitForChild("StopTraining") :: RemoteEvent
@@ -30,6 +34,7 @@ local data: any = nil
 local coins = 0 -- se actualiza cada segundo desde leaderstats
 local kicking = false -- true desde que pateas hasta que cierras la revelación
 local inKickZone = false -- true cuando cruzaste la línea de patada
+local awaitingKickStart = false -- pateaste y esperamos que empiece la animación
 local trainingIndex: number? = nil -- estación del gimnasio donde estás entrenando
 local cameraMode = "normal" -- "normal", "chase" (sigue al balón) o "reveal"
 local flyingBall: BasePart? = nil
@@ -701,6 +706,187 @@ squadButton.Activated:Connect(function()
 end)
 
 -- ============================================================
+-- Panel de administrador (solo aparece si eres OWNER)
+-- ============================================================
+local adminWindow, adminContent = makeWindow("🛠️ Panel de administrador", Color3.fromRGB(230, 120, 30))
+local adminList = scrollList(adminContent, 0, create("UIListLayout", { Padding = UDim.new(0, 8), SortOrder = Enum.SortOrder.LayoutOrder }))
+local adminOrder = 0
+local selectedPlayer: Player = player
+local selectedFootballer = #Config.Footballers
+local selectedZone = 10
+
+local function callAdmin(action: string, value: any?)
+	local ok, message = AdminFunction:InvokeServer(action, selectedPlayer.UserId, value)
+	toast(message, if ok then COLORS.Green else COLORS.Red)
+end
+
+-- Fila con elementos uno al lado del otro
+local function adminRow(): Frame
+	adminOrder += 1
+	return create("Frame", {
+		LayoutOrder = adminOrder,
+		Size = UDim2.new(1, -10, 0, 44),
+		BackgroundTransparency = 1,
+		ZIndex = 13,
+		Parent = adminList,
+	}, { create("UIListLayout", { FillDirection = Enum.FillDirection.Horizontal, Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }) })
+end
+
+local function adminButton(row: Frame, text: string, width: number, color: Color3, onClick: () -> ()): TextButton
+	local b = button({ Size = UDim2.new(width, -6, 1, 0), Text = text, ZIndex = 14, Parent = row }, color)
+	b.Activated:Connect(onClick)
+	return b
+end
+
+local function adminLabel(row: Frame, text: string, width: number): TextLabel
+	return textLabel({ Size = UDim2.new(width, -6, 1, 0), Text = text, ZIndex = 14, Parent = row })
+end
+
+-- Jugador al que se le aplican las acciones
+local targetRow = adminRow()
+local targetLabel: TextLabel
+local function cyclePlayer(step: number)
+	local list = Players:GetPlayers()
+	local index = table.find(list, selectedPlayer) or 1
+	selectedPlayer = list[(index - 1 + step) % #list + 1]
+	targetLabel.Text = "🎯 " .. selectedPlayer.DisplayName
+end
+adminButton(targetRow, "◀", 0.15, COLORS.Gray, function()
+	cyclePlayer(-1)
+end)
+targetLabel = adminLabel(targetRow, "🎯 " .. player.DisplayName, 0.7)
+adminButton(targetRow, "▶", 0.15, COLORS.Gray, function()
+	cyclePlayer(1)
+end)
+
+local money = adminRow()
+for _, amount in { 1e6, 1e9, 1e12 } do
+	adminButton(money, "💰 +" .. Config.FormatShort(amount), 1 / 3, COLORS.GreenDark, function()
+		callAdmin("Coins", amount)
+	end)
+end
+local power = adminRow()
+for _, amount in { 1e3, 1e5, 1e7 } do
+	adminButton(power, "💪 +" .. Config.FormatShort(amount), 1 / 3, COLORS.Blue, function()
+		callAdmin("Power", amount)
+	end)
+end
+local maxRow = adminRow()
+adminButton(maxRow, "⚽ Mejor balón", 0.5, Color3.fromRGB(200, 70, 200), function()
+	callAdmin("MaxBall")
+end)
+adminButton(maxRow, "🐾 Espacios al máximo", 0.5, Color3.fromRGB(40, 160, 80), function()
+	callAdmin("MaxSlots")
+end)
+
+-- Dar un futbolista
+local footRow = adminRow()
+local footLabel: TextLabel
+local function showFootballer()
+	local f = Config.Footballers[selectedFootballer]
+	footLabel.Text = f.Name
+	footLabel.TextColor3 = Config.Rarities[f.Rarity].Color
+end
+adminButton(footRow, "◀", 0.12, COLORS.Gray, function()
+	selectedFootballer = (selectedFootballer - 2) % #Config.Footballers + 1
+	showFootballer()
+end)
+footLabel = adminLabel(footRow, "", 0.5)
+adminButton(footRow, "▶", 0.12, COLORS.Gray, function()
+	selectedFootballer = selectedFootballer % #Config.Footballers + 1
+	showFootballer()
+end)
+adminButton(footRow, "⭐ Dar", 0.26, COLORS.Gold, function()
+	callAdmin("GiveFootballer", Config.Footballers[selectedFootballer].Id)
+end)
+showFootballer()
+
+-- Teletransportar a una zona
+local zoneRow = adminRow()
+local zoneLabel: TextLabel
+adminButton(zoneRow, "◀", 0.12, COLORS.Gray, function()
+	selectedZone = (selectedZone - 2) % Config.NUM_ZONES + 1
+	zoneLabel.Text = "Zona " .. selectedZone
+end)
+zoneLabel = adminLabel(zoneRow, "Zona " .. selectedZone, 0.5)
+adminButton(zoneRow, "▶", 0.12, COLORS.Gray, function()
+	selectedZone = selectedZone % Config.NUM_ZONES + 1
+	zoneLabel.Text = "Zona " .. selectedZone
+end)
+adminButton(zoneRow, "🌀 Ir", 0.26, Color3.fromRGB(90, 120, 255), function()
+	callAdmin("Teleport", selectedZone)
+end)
+
+local special = adminRow()
+adminButton(special, "⚡ Próxima: chilena", 0.5, Color3.fromRGB(255, 170, 30), function()
+	callAdmin("ForceChilena")
+end)
+adminButton(special, "🚀 Próxima: espacio", 0.5, Color3.fromRGB(150, 80, 255), function()
+	callAdmin("ForceSpace")
+end)
+local luckRow = adminRow()
+adminButton(luckRow, "🍀 Suerte x2 para todos (activar / quitar)", 1, Color3.fromRGB(60, 190, 110), function()
+	callAdmin("LuckBoost")
+end)
+
+-- Anuncio para todo el servidor
+local announceRow = adminRow()
+local announceBox = create("TextBox", {
+	Size = UDim2.new(0.7, -6, 1, 0),
+	BackgroundColor3 = COLORS.PanelLight,
+	Font = FONT,
+	PlaceholderText = "Escribe un anuncio...",
+	Text = "",
+	TextColor3 = COLORS.Text,
+	TextScaled = true,
+	ClearTextOnFocus = false,
+	ZIndex = 14,
+	Parent = announceRow,
+}, { corner(10) })
+adminButton(announceRow, "📢 Enviar", 0.3, COLORS.Red, function()
+	callAdmin("Announce", announceBox.Text)
+	announceBox.Text = ""
+end)
+
+-- Reiniciar (hay que tocar dos veces)
+local resetRow = adminRow()
+local resetArmed = false
+local resetButton: TextButton
+resetButton = adminButton(resetRow, "♻️ Reiniciar datos del jugador", 1, Color3.fromRGB(120, 40, 40), function()
+	if not resetArmed then
+		resetArmed = true
+		resetButton.Text = "⚠️ ¿Seguro? Toca otra vez"
+		task.delay(3, function()
+			resetArmed = false
+			resetButton.Text = "♻️ Reiniciar datos del jugador"
+		end)
+		return
+	end
+	resetArmed = false
+	resetButton.Text = "♻️ Reiniciar datos del jugador"
+	callAdmin("Reset")
+end)
+
+local adminButtonMain = button({
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -12, 0.45, 60),
+	Size = UDim2.new(0, 96, 0, 70),
+	Text = "🛠️\nAdmin",
+	Visible = false,
+	Parent = hud,
+}, Color3.fromRGB(230, 120, 30))
+stroke(Color3.new(0, 0, 0), 3).Parent = adminButtonMain
+adminButtonMain.Activated:Connect(function()
+	toggleWindow(adminWindow)
+end)
+
+local function updateAdminVisibility()
+	adminButtonMain.Visible = player:GetAttribute("IsOwner") == true
+end
+player:GetAttributeChangedSignal("IsOwner"):Connect(updateAdminVisibility)
+updateAdminVisibility()
+
+-- ============================================================
 -- Revelación del futbolista
 -- ============================================================
 local revealGui = create("Frame", {
@@ -989,6 +1175,7 @@ local function refreshUI()
 	if not data then
 		return
 	end
+	KickAnimation.SetBallLook(data.BallTier)
 	local income = getIncome()
 	powerStat.Text = "💪 " .. Config.FormatShort(data.Power)
 	incomeStat.Text = "📈 +" .. Config.FormatShort(income) .. "/s"
@@ -1111,6 +1298,7 @@ local function finishKick(myKick: number)
 	end
 	kickId += 1 -- invalida temporizadores pendientes
 	waitingForContinue = false
+	awaitingKickStart = false
 	flyingBall = nil
 	flightHud.Visible = false
 	revealGui.Visible = false
@@ -1127,6 +1315,7 @@ local function kick()
 		return
 	end
 	setKickingState(true)
+	awaitingKickStart = true
 	kickId += 1
 	local myKick = kickId
 	KickEvent:FireServer(needleValue)
@@ -1178,21 +1367,131 @@ local function floatText(label: TextLabel, text: string, startPos: UDim2)
 	end)
 end
 
-BallLaunchedEvent.OnClientEvent:Connect(function(ball: BasePart?, info: any)
+local specialLabel = textLabel({
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.3, 0),
+	Size = UDim2.new(0, 520, 0, 80),
+	Text = "",
+	TextColor3 = COLORS.Gold,
+	TextStrokeTransparency = 0,
+	Visible = false,
+	ZIndex = 6,
+	Parent = gui,
+})
+
+-- Empieza la patada: animación con el balón en las manos (o chilena)
+KickStartEvent.OnClientEvent:Connect(function(info: any)
+	awaitingKickStart = false
 	floatText(powerGainLabel, "+" .. info.PowerGain .. " PODER", UDim2.new(0.5, 150, 0.45, 0))
 	if info.Perfect then
 		floatText(perfectLabel, "¡PERFECTO!", UDim2.new(0.5, 0, 0.62, 0))
+	end
+	if info.Chilena then
+		floatText(specialLabel, "⚡ ¡CHILENA! ⚡", UDim2.new(0.5, 0, 0.3, 0))
+	end
+	if info.Space then
+		task.delay(if info.Chilena then 1.2 else 0.4, function()
+			floatText(specialLabel, "🚀 ¡AL ESPACIO! 🚀", UDim2.new(0.5, 0, 0.3, 0))
+		end)
 	end
 	if data then
 		data.Power = info.Power
 		powerStat.Text = "💪 " .. Config.FormatShort(info.Power)
 	end
+	KickAnimation.SetBallLook(info.BallTier)
+	task.spawn(KickAnimation.Play, info.Chilena == true)
+end)
+
+BallLaunchedEvent.OnClientEvent:Connect(function(ball: BasePart?, _info: any)
 	if ball then
 		flyingBall = ball
 		cameraMode = "chase"
 		camera.CameraType = Enum.CameraType.Scriptable
 		flightHud.Visible = true
 	end
+end)
+
+-- ¡Al espacio! El balón revienta los planetas que toca (en la pantalla de cada jugador)
+local fxRandom = Random.new()
+
+local function explodePlanet(planet: Model)
+	if planet:GetAttribute("Roto") then
+		return
+	end
+	local body = planet.PrimaryPart or planet:FindFirstChild("Cuerpo") :: BasePart?
+	if not body then
+		return
+	end
+	planet:SetAttribute("Roto", true)
+	local center = body.Position
+	local radius = planet:GetAttribute("Radius") or 30
+	local hidden: { [BasePart]: number } = {}
+	for _, part in planet:GetDescendants() do
+		if part:IsA("BasePart") then
+			hidden[part] = part.Transparency
+			part.Transparency = 1
+		end
+	end
+	create("Explosion", {
+		Position = center,
+		BlastRadius = radius,
+		BlastPressure = 0,
+		DestroyJointRadiusPercent = 0,
+		ExplosionType = Enum.ExplosionType.NoCraters,
+		Parent = workspace,
+	})
+	for _ = 1, 20 do
+		local size = fxRandom:NextNumber(radius * 0.15, radius * 0.4)
+		local dir = fxRandom:NextUnitVector()
+		local chunk = create("Part", {
+			Size = Vector3.new(size, size, size),
+			Color = body.Color,
+			Material = Enum.Material.SmoothPlastic,
+			CFrame = CFrame.new(center + dir * radius * 0.4) * CFrame.Angles(fxRandom:NextNumber(0, 6), fxRandom:NextNumber(0, 6), 0),
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Parent = workspace,
+		})
+		chunk.AssemblyLinearVelocity = dir * fxRandom:NextNumber(60, 150)
+		chunk.AssemblyAngularVelocity = fxRandom:NextUnitVector() * 6
+		Debris:AddItem(chunk, 6)
+	end
+	-- Los planetas vuelven a aparecer después de un rato
+	task.delay(12, function()
+		for part, transparency in hidden do
+			if part.Parent then
+				part.Transparency = transparency
+			end
+		end
+		planet:SetAttribute("Roto", nil)
+	end)
+end
+
+SpaceKickEvent.OnClientEvent:Connect(function(ball: BasePart?)
+	local map = workspace:FindFirstChild("Mapa")
+	local space = map and map:FindFirstChild("Espacio")
+	local planets = space and space:FindFirstChild("Planetas")
+	if not ball or not planets then
+		return
+	end
+	local started = os.clock()
+	local connection
+	connection = RunService.Heartbeat:Connect(function()
+		if not ball.Parent or os.clock() - started > 12 then
+			connection:Disconnect()
+			return
+		end
+		for _, planet in planets:GetChildren() do
+			local body = planet:IsA("Model") and planet.PrimaryPart
+			if body and not planet:GetAttribute("Roto") then
+				local radius = planet:GetAttribute("Radius") or 30
+				if (ball.Position - body.Position).Magnitude <= radius + 8 then
+					explodePlanet(planet)
+				end
+			end
+		end
+	end)
 end)
 
 KickResultEvent.OnClientEvent:Connect(function(result)
@@ -1239,7 +1538,9 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 		revealSquad.Text = "💸 Plantilla llena: vendido por 💰" .. Config.FormatShort(result.SaleCoins)
 		revealSquad.TextColor3 = COLORS.Muted
 	end
-	if result.NewRecord then
+	if result.Space then
+		toast("🚀 ¡Suerte cósmica x" .. Config.SPACE_LUCK_BONUS .. " y monedas x" .. Config.SPACE_COINS_BONUS .. "!", Color3.fromRGB(200, 140, 255))
+	elseif result.NewRecord then
 		toast("🏆 ¡NUEVO RÉCORD: " .. Config.FormatNumber(result.Distance) .. " m!", COLORS.Gold)
 	end
 
@@ -1563,6 +1864,7 @@ RunService.RenderStepped:Connect(function(dt)
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 	inKickZone = root ~= nil and Config.IsInKickZone(root.Position)
 	kickArea.Visible = inKickZone and not trainingIndex
+	KickAnimation.SetHolding((inKickZone and not kicking and not trainingIndex) or awaitingKickStart)
 	kickHint.Visible = not inKickZone and not trainingIndex
 
 	if not kicking then
@@ -1581,12 +1883,14 @@ RunService.RenderStepped:Connect(function(dt)
 		local distance = math.max(target.Z, 0)
 		local zone = Config.GetZoneFromDistance(distance)
 		local zoneInfo = Config.GetZoneInfo(zone)
+		local inSpace = target.Y > 250
+		local bannerText = if inSpace then "🚀 ESPACIO 🪐" else zoneInfo.Emoji .. " " .. zoneInfo.Name
 		luckLabel.Text = "x" .. Config.FormatLuck(Config.GetLuckAtDistance(distance))
 		distanceLabel.Text = string.format("📏 %s m · Zona %d", Config.FormatNumber(distance), zone)
-		if zoneInfo.Name ~= lastBiome then
-			lastBiome = zoneInfo.Name
-			biomeLabel.Text = zoneInfo.Emoji .. " " .. zoneInfo.Name
-			biomeLabel.TextColor3 = zoneInfo.Field:Lerp(Color3.new(1, 1, 1), 0.45)
+		if bannerText ~= lastBiome then
+			lastBiome = bannerText
+			biomeLabel.Text = bannerText
+			biomeLabel.TextColor3 = if inSpace then Color3.fromRGB(210, 170, 255) else zoneInfo.Field:Lerp(Color3.new(1, 1, 1), 0.45)
 			popIn(biomeLabel)
 		end
 	elseif cameraMode ~= "chase" then

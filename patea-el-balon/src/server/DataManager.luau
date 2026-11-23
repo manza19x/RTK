@@ -119,6 +119,13 @@ function DataManager.Get(player: Player): PlayerData?
 	return profiles[player]
 end
 
+-- Deja al jugador como nuevo (lo usa el panel de administrador)
+function DataManager.Reset(player: Player)
+	if profiles[player] then
+		profiles[player] = defaultData()
+	end
+end
+
 function DataManager.Save(player: Player)
 	local data = profiles[player]
 	if not data or not canSave[player] or not store then

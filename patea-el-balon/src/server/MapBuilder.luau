@@ -850,6 +850,73 @@ local function buildLobby(map: Folder)
 	makeLabel(kickSign, "⚽ ¡PATEA AQUÍ!", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.fromRGB(255, 230, 80))
 end
 
+-- Planetas en el cielo, justo en el camino del balón cuando se va al espacio
+local function buildSpace(map: Folder)
+	local space = Instance.new("Folder")
+	space.Name = "Espacio"
+	space.Parent = map
+	local planets = Instance.new("Folder")
+	planets.Name = "Planetas"
+	planets.Parent = space
+	local rng = Random.new(2024)
+	local colors = {
+		Color3.fromRGB(255, 140, 60),
+		Color3.fromRGB(110, 170, 255),
+		Color3.fromRGB(200, 100, 255),
+		Color3.fromRGB(255, 215, 90),
+		Color3.fromRGB(90, 230, 170),
+	}
+	for i, alpha in Config.SPACE_PLANET_STOPS do
+		local center = Config.GetSpacePoint(alpha, workspace.Gravity) + Vector3.new(rng:NextNumber(-6, 6), 0, 0)
+		local size = rng:NextNumber(45, 80)
+		local planet = Instance.new("Model")
+		planet.Name = "Planeta" .. i
+		local body = makePart({
+			Name = "Cuerpo",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(size, size, size),
+			Position = center,
+			Color = colors[(i - 1) % #colors + 1],
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Parent = planet,
+		})
+		if i % 2 == 1 then
+			makePart({
+				Name = "Anillo",
+				Shape = Enum.PartType.Cylinder,
+				Size = Vector3.new(0.6, size * 1.8, size * 1.8),
+				CFrame = CFrame.new(center) * CFrame.Angles(rng:NextNumber(-0.4, 0.4), 0, math.rad(90) + rng:NextNumber(-0.3, 0.3)),
+				Color = Color3.fromRGB(235, 225, 255),
+				Material = Enum.Material.Neon,
+				Transparency = 0.4,
+				CanCollide = false,
+				CanQuery = false,
+				CanTouch = false,
+				Parent = planet,
+			})
+		end
+		planet.PrimaryPart = body
+		planet:SetAttribute("Radius", size / 2)
+		planet.Parent = planets
+	end
+	for _ = 1, 70 do
+		makePart({
+			Name = "Estrella",
+			Shape = Enum.PartType.Ball,
+			Size = Vector3.new(3, 3, 3),
+			Position = Vector3.new(rng:NextNumber(-500, 500), rng:NextNumber(500, 1300), rng:NextNumber(-200, 3200)),
+			Color = Color3.new(1, 1, 1),
+			Material = Enum.Material.Neon,
+			CanCollide = false,
+			CanQuery = false,
+			CanTouch = false,
+			Parent = space,
+		})
+	end
+end
+
 -- Cielo azul con nubes, sol y colores más vivos
 function MapBuilder.SetupSky()
 	local Lighting = game:GetService("Lighting")
@@ -929,6 +996,7 @@ function MapBuilder.Build(): Folder
 		buildZone(map, zone)
 	end
 	buildGoal(map)
+	buildSpace(map)
 	map.Parent = workspace
 
 	for _, name in { "Balones" } do
