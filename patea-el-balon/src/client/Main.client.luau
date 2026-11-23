@@ -1,4 +1,5 @@
--- Interfaz del jugador: barra de fuerza, botón de patear, tienda, colección y cámara.
+-- Interfaz del jugador: barra de poder, patada, cámara, revelación del futbolista,
+-- plantilla, índice y tienda.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -7,6 +8,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local Assets = ReplicatedStorage:WaitForChild("Assets")
 local KickEvent = Remotes:WaitForChild("Kick") :: RemoteEvent
 local BallLaunchedEvent = Remotes:WaitForChild("BallLaunched") :: RemoteEvent
 local KickResultEvent = Remotes:WaitForChild("KickResult") :: RemoteEvent
@@ -19,11 +21,13 @@ local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local data: any = nil
-local kicking = false -- true desde que pateas hasta que el balón cae y vuelve la cámara
+local coins = 0 -- se actualiza cada segundo desde leaderstats
+local kicking = false -- true desde que pateas hasta que cierras la revelación
+local cameraMode = "normal" -- "normal", "chase" (sigue al balón) o "reveal"
 local flyingBall: BasePart? = nil
 local needleValue = 0
 local needleTime = 0
-local NEEDLE_PERIOD = 0.8 -- segundos que tarda la barra en ir de 0 a 100%
+local NEEDLE_PERIOD = 0.75 -- segundos que tarda la barra en ir de abajo a arriba
 
 -- ============================================================
 -- Ayudantes de UI
@@ -36,8 +40,10 @@ local COLORS = {
 	Gold = Color3.fromRGB(255, 200, 50),
 	Red = Color3.fromRGB(230, 70, 70),
 	Gray = Color3.fromRGB(110, 115, 130),
+	Blue = Color3.fromRGB(70, 130, 255),
 	Text = Color3.new(1, 1, 1),
-	Muted = Color3.fromRGB(180, 185, 200),
+	Muted = Color3.fromRGB(185, 190, 205),
+	Money = Color3.fromRGB(120, 255, 120),
 }
 local FONT = Enum.Font.FredokaOne
 
@@ -72,12 +78,12 @@ local function stroke(color: Color3, thickness: number?): UIStroke
 end
 
 local function textLabel(props: { [string]: any }): TextLabel
-	local defaults = {
+	local defaults: { [string]: any } = {
 		BackgroundTransparency = 1,
 		Font = FONT,
 		TextColor3 = COLORS.Text,
 		TextScaled = true,
-		TextStrokeTransparency = 0.6,
+		TextStrokeTransparency = 0.5,
 	}
 	for key, value in props do
 		defaults[key] = value
@@ -86,24 +92,32 @@ local function textLabel(props: { [string]: any }): TextLabel
 end
 
 local function button(props: { [string]: any }, color: Color3): TextButton
-	local defaults = {
+	local defaults: { [string]: any } = {
 		BackgroundColor3 = color,
 		Font = FONT,
 		TextColor3 = COLORS.Text,
 		TextScaled = true,
-		TextStrokeTransparency = 0.6,
+		TextStrokeTransparency = 0.5,
 		AutoButtonColor = true,
 	}
 	for key, value in props do
 		defaults[key] = value
 	end
-	local b = create("TextButton", defaults, { corner(10), create("UIPadding", {
-		PaddingTop = UDim.new(0, 4),
-		PaddingBottom = UDim.new(0, 4),
-		PaddingLeft = UDim.new(0, 6),
-		PaddingRight = UDim.new(0, 6),
-	}) })
-	return b
+	return create("TextButton", defaults, {
+		corner(10),
+		create("UIPadding", {
+			PaddingTop = UDim.new(0, 5),
+			PaddingBottom = UDim.new(0, 5),
+			PaddingLeft = UDim.new(0, 6),
+			PaddingRight = UDim.new(0, 6),
+		}),
+	})
+end
+
+local function popIn(guiObject: GuiObject)
+	local scale = guiObject:FindFirstChildOfClass("UIScale") or create("UIScale", { Parent = guiObject })
+	scale.Scale = 0.3
+	TweenService:Create(scale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 }):Play()
 end
 
 local gui = create("ScreenGui", {
@@ -113,152 +127,185 @@ local gui = create("ScreenGui", {
 	Parent = player:WaitForChild("PlayerGui"),
 })
 
--- ============================================================
--- Barra superior (monedas, fuerza, balón)
--- ============================================================
-local topBar = create("Frame", {
-	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 8),
-	Size = UDim2.new(0.7, 0, 0, 44),
-	BackgroundTransparency = 1,
-	Parent = gui,
-}, {
-	create("UISizeConstraint", { MaxSize = Vector2.new(620, 44) }),
-	create("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		Padding = UDim.new(0, 8),
-	}),
-})
+-- Todo lo que se esconde durante el vuelo y la revelación
+local hud = create("Frame", { Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Parent = gui })
 
-local function pill(order: number, widthScale: number): TextLabel
+-- ============================================================
+-- Estadísticas (abajo a la izquierda)
+-- ============================================================
+local statsFrame = create("Frame", {
+	AnchorPoint = Vector2.new(0, 1),
+	Position = UDim2.new(0, 12, 1, -12),
+	Size = UDim2.new(0, 190, 0, 112),
+	BackgroundTransparency = 1,
+	Parent = hud,
+}, { create("UIListLayout", { Padding = UDim.new(0, 4) }) })
+
+local function statLabel(order: number, color: Color3, height: number): TextLabel
 	return textLabel({
 		LayoutOrder = order,
-		Size = UDim2.new(widthScale, -6, 1, 0),
-		BackgroundTransparency = 0.15,
-		BackgroundColor3 = COLORS.Panel,
+		Size = UDim2.new(1, 0, 0, height),
 		Text = "...",
-		Parent = topBar,
+		TextColor3 = color,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextStrokeTransparency = 0,
+		Parent = statsFrame,
 	})
 end
-local coinsPill = pill(1, 0.3)
-local strengthPill = pill(2, 0.28)
-local ballPill = pill(3, 0.42)
-for _, p in { coinsPill, strengthPill, ballPill } do
-	corner(12).Parent = p
-	create("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6) }).Parent = p
-end
-coinsPill.TextColor3 = COLORS.Gold
-
--- Info de vuelo (distancia y zona en vivo)
-local flightLabel = textLabel({
-	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 60),
-	Size = UDim2.new(0.6, 0, 0, 40),
-	Text = "",
-	Visible = false,
-	TextStrokeTransparency = 0,
-	Parent = gui,
-})
-
--- Anuncios para todo el servidor
-local announcementLabel = textLabel({
-	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 104),
-	Size = UDim2.new(0.8, 0, 0, 30),
-	Text = "",
-	Visible = false,
-	TextStrokeTransparency = 0,
-	Parent = gui,
-})
+local powerStat = statLabel(1, Color3.fromRGB(120, 200, 255), 36)
+local coinsStat = statLabel(2, COLORS.Money, 36)
+local incomeStat = statLabel(3, COLORS.Muted, 26)
 
 -- ============================================================
--- Panel de patada (abajo)
+-- Barra de poder vertical + botón de patear (abajo al centro)
 -- ============================================================
-local kickPanel = create("Frame", {
+local kickArea = create("Frame", {
 	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 1, -16),
-	Size = UDim2.new(0.9, 0, 0, 150),
-	BackgroundColor3 = COLORS.Panel,
-	BackgroundTransparency = 0.15,
-	Parent = gui,
-}, {
-	corner(16),
-	create("UISizeConstraint", { MaxSize = Vector2.new(440, 150) }),
-})
-
-local powerInfo = textLabel({
-	Position = UDim2.new(0, 12, 0, 6),
-	Size = UDim2.new(1, -24, 0, 22),
-	Text = "Potencia: ...",
-	TextColor3 = COLORS.Muted,
-	Parent = kickPanel,
+	Position = UDim2.new(0.5, 0, 1, -14),
+	Size = UDim2.new(0, 260, 0, 320),
+	BackgroundTransparency = 1,
+	Parent = hud,
 })
 
 local barBack = create("Frame", {
-	Position = UDim2.new(0, 12, 0, 34),
-	Size = UDim2.new(1, -24, 0, 30),
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 0),
+	Size = UDim2.new(0, 54, 0, 230),
 	BackgroundColor3 = Color3.new(1, 1, 1),
-	ClipsDescendants = false,
-	Parent = kickPanel,
+	Parent = kickArea,
 }, {
-	corner(8),
-	stroke(Color3.new(0, 0, 0), 2),
+	corner(14),
+	stroke(Color3.new(0, 0, 0), 3),
 	create("UIGradient", {
+		Rotation = 270, -- de abajo (rojo) hacia arriba (verde)
 		Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 50, 50)),
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(230, 60, 50)),
 			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(250, 210, 50)),
-			ColorSequenceKeypoint.new(0.89, Color3.fromRGB(70, 210, 90)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(70, 210, 90)),
+			ColorSequenceKeypoint.new(0.89, Color3.fromRGB(90, 220, 90)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(90, 220, 90)),
 		}),
 	}),
 })
-
--- Zona "PERFECTO" al final de la barra
+-- Zona "PERFECTO" arriba
 create("Frame", {
-	Position = UDim2.fromScale(Config.PERFECT_THRESHOLD, 0),
-	Size = UDim2.fromScale(1 - Config.PERFECT_THRESHOLD, 1),
+	Size = UDim2.fromScale(1, 1 - Config.PERFECT_THRESHOLD),
 	BackgroundColor3 = COLORS.Gold,
-	BorderSizePixel = 0,
 	Parent = barBack,
 }, {
-	corner(8),
-	textLabel({ Size = UDim2.fromScale(1, 1), Text = "★", TextColor3 = Color3.new(1, 1, 1) }),
+	corner(14),
+	textLabel({ Size = UDim2.fromScale(1, 1), Text = "★" }),
 })
-
 local needle = create("Frame", {
 	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0, 0.5),
-	Size = UDim2.new(0, 6, 1, 14),
+	Position = UDim2.fromScale(0.5, 1),
+	Size = UDim2.new(1, 18, 0, 8),
 	BackgroundColor3 = Color3.new(1, 1, 1),
 	ZIndex = 3,
 	Parent = barBack,
-}, {
-	corner(3),
-	stroke(Color3.new(0, 0, 0), 2),
-})
+}, { corner(4), stroke(Color3.new(0, 0, 0), 2) })
 
 local kickButton = button({
-	AnchorPoint = Vector2.new(0.5, 0),
-	Position = UDim2.new(0.5, 0, 0, 76),
-	Size = UDim2.new(1, -24, 0, 62),
-	Text = "⚽ PATEAR  (clic o F)",
-	Parent = kickPanel,
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, 0),
+	Size = UDim2.new(1, 0, 0, 70),
+	Text = "⚽ PATEAR (F)",
+	Parent = kickArea,
 }, COLORS.Green)
 stroke(COLORS.GreenDark, 3).Parent = kickButton
 
+-- "+20 PODER" y "¡PERFECTO!"
+local powerGainLabel = textLabel({
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 150, 0.45, 0),
+	Size = UDim2.new(0, 260, 0, 56),
+	Text = "",
+	TextColor3 = Color3.fromRGB(150, 255, 150),
+	TextStrokeTransparency = 0,
+	Visible = false,
+	ZIndex = 5,
+	Parent = gui,
+})
+local perfectLabel = textLabel({
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.5, 0, 0.62, 0),
+	Size = UDim2.new(0, 360, 0, 64),
+	Text = "¡PERFECTO!",
+	TextColor3 = COLORS.Gold,
+	TextStrokeTransparency = 0,
+	Visible = false,
+	ZIndex = 5,
+	Parent = gui,
+})
+
 -- ============================================================
--- Mensajes cortos (compras, errores)
+-- HUD de vuelo: suerte en grande, bioma y distancia
+-- ============================================================
+local flightHud = create("Frame", {
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
+	Visible = false,
+	Parent = gui,
+})
+local luckBox = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 10),
+	Size = UDim2.new(0, 300, 0, 90),
+	BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+	BackgroundTransparency = 0.6,
+	Parent = flightHud,
+}, { corner(16) })
+local luckLabel = textLabel({
+	Size = UDim2.new(1, 0, 0.7, 0),
+	Text = "x1",
+	TextStrokeTransparency = 0,
+	Parent = luckBox,
+})
+textLabel({
+	Position = UDim2.fromScale(0, 0.68),
+	Size = UDim2.new(1, 0, 0.28, 0),
+	Text = "SUERTE",
+	TextStrokeTransparency = 0,
+	Parent = luckBox,
+})
+local biomeBanner = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 110),
+	Size = UDim2.new(1, 0, 0, 50),
+	BackgroundColor3 = Color3.new(0, 0, 0),
+	BackgroundTransparency = 0.55,
+	Parent = flightHud,
+})
+local biomeLabel = textLabel({
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.5),
+	Size = UDim2.new(0, 400, 1, -8),
+	Text = "",
+	TextStrokeTransparency = 0,
+	Parent = biomeBanner,
+})
+local distanceLabel = textLabel({
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 166),
+	Size = UDim2.new(0, 360, 0, 30),
+	Text = "",
+	TextStrokeTransparency = 0,
+	Parent = flightHud,
+})
+
+-- ============================================================
+-- Mensajes cortos y anuncios
 -- ============================================================
 local toastLabel = textLabel({
-	AnchorPoint = Vector2.new(0.5, 1),
-	Position = UDim2.new(0.5, 0, 1, -176),
-	Size = UDim2.new(0.6, 0, 0, 30),
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 60),
+	Size = UDim2.new(0.8, 0, 0, 40),
 	Text = "",
 	Visible = false,
 	TextStrokeTransparency = 0,
+	ZIndex = 30,
 	Parent = gui,
 })
+create("UISizeConstraint", { MaxSize = Vector2.new(560, 40), Parent = toastLabel })
 local toastId = 0
 local function toast(text: string, color: Color3?)
 	toastId += 1
@@ -266,6 +313,7 @@ local function toast(text: string, color: Color3?)
 	toastLabel.Text = text
 	toastLabel.TextColor3 = color or COLORS.Text
 	toastLabel.Visible = true
+	popIn(toastLabel)
 	task.delay(2.5, function()
 		if toastId == myId then
 			toastLabel.Visible = false
@@ -273,48 +321,66 @@ local function toast(text: string, color: Color3?)
 	end)
 end
 
+local announcementLabel = textLabel({
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 104),
+	Size = UDim2.new(0.8, 0, 0, 30),
+	Text = "",
+	Visible = false,
+	TextStrokeTransparency = 0,
+	ZIndex = 30,
+	Parent = gui,
+})
+
 -- ============================================================
--- Ventana genérica (tienda y colección)
+-- Ventanas (tienda, índice, plantilla)
 -- ============================================================
 local openWindow: Frame? = nil
 
-local function makeWindow(title: string): (Frame, Frame)
+local function makeWindow(title: string, titleColor: Color3): (Frame, Frame)
 	local window = create("Frame", {
 		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.48),
-		Size = UDim2.fromScale(0.9, 0.72),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.fromScale(0.9, 0.78),
 		BackgroundColor3 = COLORS.Panel,
 		Visible = false,
 		ZIndex = 10,
 		Parent = gui,
 	}, {
 		corner(16),
-		stroke(COLORS.Gold, 3),
-		create("UISizeConstraint", { MaxSize = Vector2.new(540, 480) }),
+		stroke(Color3.new(0, 0, 0), 3),
+		create("UISizeConstraint", { MaxSize = Vector2.new(600, 500) }),
 	})
-	textLabel({
-		Position = UDim2.new(0, 16, 0, 10),
-		Size = UDim2.new(1, -80, 0, 36),
-		Text = title,
-		TextXAlignment = Enum.TextXAlignment.Left,
+	local header = create("Frame", {
+		Size = UDim2.new(1, 0, 0, 56),
+		BackgroundColor3 = titleColor,
 		ZIndex = 11,
 		Parent = window,
+	}, { corner(16) })
+	textLabel({
+		Position = UDim2.new(0, 16, 0, 8),
+		Size = UDim2.new(1, -80, 0, 40),
+		Text = title,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		TextStrokeTransparency = 0,
+		ZIndex = 12,
+		Parent = header,
 	})
 	local close = button({
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -10, 0, 10),
-		Size = UDim2.new(0, 40, 0, 36),
+		Position = UDim2.new(1, -10, 0, 8),
+		Size = UDim2.new(0, 42, 0, 40),
 		Text = "X",
-		ZIndex = 11,
-		Parent = window,
+		ZIndex = 12,
+		Parent = header,
 	}, COLORS.Red)
 	close.Activated:Connect(function()
 		window.Visible = false
 		openWindow = nil
 	end)
 	local content = create("Frame", {
-		Position = UDim2.new(0, 12, 0, 54),
-		Size = UDim2.new(1, -24, 1, -66),
+		Position = UDim2.new(0, 12, 0, 66),
+		Size = UDim2.new(1, -24, 1, -78),
 		BackgroundTransparency = 1,
 		ZIndex = 11,
 		Parent = window,
@@ -328,68 +394,36 @@ local function toggleWindow(window: Frame)
 	end
 	window.Visible = not window.Visible
 	openWindow = if window.Visible then window else nil
+	if window.Visible then
+		popIn(window)
+	end
 end
 
--- ============================================================
--- Tienda
--- ============================================================
-local shopWindow, shopContent = makeWindow("🛒 Tienda")
+local function scrollList(parent: Instance, top: number, layout: Instance): ScrollingFrame
+	return create("ScrollingFrame", {
+		Position = UDim2.new(0, 0, 0, top),
+		Size = UDim2.new(1, 0, 1, -top),
+		BackgroundTransparency = 1,
+		BorderSizePixel = 0,
+		ScrollBarThickness = 6,
+		CanvasSize = UDim2.new(),
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		ZIndex = 12,
+		Parent = parent,
+	}, { layout })
+end
 
-local strengthCard = create("Frame", {
-	Size = UDim2.new(1, 0, 0, 76),
-	BackgroundColor3 = COLORS.PanelLight,
-	ZIndex = 12,
-	Parent = shopContent,
-}, { corner(12) })
-local strengthTitle = textLabel({
-	Position = UDim2.new(0, 12, 0, 8),
-	Size = UDim2.new(0.6, -12, 0, 30),
-	Text = "💪 Fuerza",
-	TextXAlignment = Enum.TextXAlignment.Left,
-	ZIndex = 13,
-	Parent = strengthCard,
-})
-local strengthDesc = textLabel({
-	Position = UDim2.new(0, 12, 0, 40),
-	Size = UDim2.new(0.6, -12, 0, 24),
-	Text = "",
-	TextColor3 = COLORS.Muted,
-	TextXAlignment = Enum.TextXAlignment.Left,
-	ZIndex = 13,
-	Parent = strengthCard,
-})
-local strengthButton = button({
-	AnchorPoint = Vector2.new(1, 0.5),
-	Position = UDim2.new(1, -10, 0.5, 0),
-	Size = UDim2.new(0.38, 0, 0, 52),
-	Text = "",
-	ZIndex = 13,
-	Parent = strengthCard,
-}, COLORS.Green)
-
+-- ---------------- Tienda de balones ----------------
+local shopWindow, shopContent = makeWindow("🛒 Tienda de balones", Color3.fromRGB(200, 70, 200))
 textLabel({
-	Position = UDim2.new(0, 4, 0, 84),
-	Size = UDim2.new(1, -8, 0, 26),
-	Text = "⚽ Balones (cada uno multiplica tu potencia)",
-	TextXAlignment = Enum.TextXAlignment.Left,
+	Size = UDim2.new(1, 0, 0, 24),
+	Text = "Cada balón hace que tus patadas lleguen más lejos",
 	TextColor3 = COLORS.Muted,
+	TextXAlignment = Enum.TextXAlignment.Left,
 	ZIndex = 12,
 	Parent = shopContent,
 })
-
-local ballList = create("ScrollingFrame", {
-	Position = UDim2.new(0, 0, 0, 116),
-	Size = UDim2.new(1, 0, 1, -116),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	ScrollBarThickness = 6,
-	CanvasSize = UDim2.new(),
-	AutomaticCanvasSize = Enum.AutomaticSize.Y,
-	ZIndex = 12,
-	Parent = shopContent,
-}, {
-	create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
-})
+local ballList = scrollList(shopContent, 32, create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }))
 
 type BallRow = { Button: TextButton }
 local ballRows: { BallRow } = {}
@@ -397,7 +431,7 @@ local ballRows: { BallRow } = {}
 for tier, ball in Config.Balls do
 	local row = create("Frame", {
 		LayoutOrder = tier,
-		Size = UDim2.new(1, -10, 0, 58),
+		Size = UDim2.new(1, -10, 0, 62),
 		BackgroundColor3 = COLORS.PanelLight,
 		ZIndex = 13,
 		Parent = ballList,
@@ -405,23 +439,23 @@ for tier, ball in Config.Balls do
 	create("Frame", {
 		AnchorPoint = Vector2.new(0, 0.5),
 		Position = UDim2.new(0, 10, 0.5, 0),
-		Size = UDim2.new(0, 38, 0, 38),
+		Size = UDim2.new(0, 42, 0, 42),
 		BackgroundColor3 = ball.Color,
 		ZIndex = 14,
 		Parent = row,
-	}, { corner(19), stroke(Color3.new(0, 0, 0), 2) })
+	}, { corner(21), stroke(Color3.new(0, 0, 0), 2) })
 	textLabel({
-		Position = UDim2.new(0, 58, 0, 6),
-		Size = UDim2.new(0.58, -58, 0, 26),
+		Position = UDim2.new(0, 62, 0, 6),
+		Size = UDim2.new(0.6, -62, 0, 28),
 		Text = ball.Name,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 14,
 		Parent = row,
 	})
 	textLabel({
-		Position = UDim2.new(0, 58, 0, 32),
-		Size = UDim2.new(0.58, -58, 0, 20),
-		Text = "Potencia x" .. Config.FormatLuck(ball.Multiplier),
+		Position = UDim2.new(0, 62, 0, 34),
+		Size = UDim2.new(0.6, -62, 0, 22),
+		Text = "Distancia x" .. Config.FormatLuck(ball.Multiplier),
 		TextColor3 = COLORS.Muted,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 14,
@@ -430,7 +464,7 @@ for tier, ball in Config.Balls do
 	local buy = button({
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -8, 0.5, 0),
-		Size = UDim2.new(0.38, 0, 0, 44),
+		Size = UDim2.new(0.36, 0, 0, 46),
 		Text = "",
 		ZIndex = 14,
 		Parent = row,
@@ -444,40 +478,25 @@ for tier, ball in Config.Balls do
 	ballRows[tier] = { Button = buy }
 end
 
-strengthButton.Activated:Connect(function()
-	local ok, message = PurchaseFunction:InvokeServer("Strength")
-	toast(message, if ok then COLORS.Green else COLORS.Red)
-end)
-
--- ============================================================
--- Colección
--- ============================================================
-local collectionWindow, collectionContent = makeWindow("📖 Colección")
-local collectionCount = textLabel({
+-- ---------------- Índice (colección) ----------------
+local indexWindow, indexContent = makeWindow("📖 Índice de futbolistas", Color3.fromRGB(60, 110, 230))
+local indexCount = textLabel({
 	Size = UDim2.new(1, 0, 0, 24),
 	Text = "",
 	TextColor3 = COLORS.Muted,
 	TextXAlignment = Enum.TextXAlignment.Left,
 	ZIndex = 12,
-	Parent = collectionContent,
+	Parent = indexContent,
 })
-local cardGrid = create("ScrollingFrame", {
-	Position = UDim2.new(0, 0, 0, 30),
-	Size = UDim2.new(1, 0, 1, -30),
-	BackgroundTransparency = 1,
-	BorderSizePixel = 0,
-	ScrollBarThickness = 6,
-	CanvasSize = UDim2.new(),
-	AutomaticCanvasSize = Enum.AutomaticSize.Y,
-	ZIndex = 12,
-	Parent = collectionContent,
-}, {
+local cardGrid = scrollList(
+	indexContent,
+	32,
 	create("UIGridLayout", {
-		CellSize = UDim2.new(0, 150, 0, 96),
+		CellSize = UDim2.new(0, 160, 0, 104),
 		CellPadding = UDim2.new(0, 8, 0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
-	}),
-})
+	})
+)
 
 type Card = { Name: TextLabel, Count: TextLabel, Stroke: UIStroke }
 local cards: { [string]: Card } = {}
@@ -490,35 +509,35 @@ for index, f in Config.Footballers do
 		ZIndex = 13,
 		Parent = cardGrid,
 	}, { corner(10) })
-	local cardStroke = stroke(rarity.Color, 2)
+	local cardStroke = stroke(rarity.Color, 3)
 	cardStroke.Parent = card
 	local nameLabel = textLabel({
 		Position = UDim2.new(0, 6, 0, 6),
-		Size = UDim2.new(1, -12, 0, 30),
+		Size = UDim2.new(1, -12, 0, 28),
 		Text = "???",
 		ZIndex = 14,
 		Parent = card,
 	})
 	textLabel({
-		Position = UDim2.new(0, 6, 0, 38),
+		Position = UDim2.new(0, 6, 0, 36),
 		Size = UDim2.new(1, -12, 0, 20),
-		Text = rarity.Name,
+		Text = rarity.Name .. " · 1 en " .. Config.FormatShort(f.Chance),
 		TextColor3 = rarity.Color,
 		ZIndex = 14,
 		Parent = card,
 	})
 	textLabel({
-		Position = UDim2.new(0, 6, 0, 58),
-		Size = UDim2.new(0.6, -6, 0, 28),
-		Text = "1 en " .. Config.FormatNumber(f.Chance),
-		TextColor3 = COLORS.Muted,
+		Position = UDim2.new(0, 6, 0, 60),
+		Size = UDim2.new(0.62, -6, 0, 26),
+		Text = "💰 " .. Config.FormatShort(f.Income) .. "/s",
+		TextColor3 = COLORS.Money,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		ZIndex = 14,
 		Parent = card,
 	})
 	local countLabel = textLabel({
-		Position = UDim2.new(0.6, 0, 0, 58),
-		Size = UDim2.new(0.4, -6, 0, 28),
+		Position = UDim2.new(0.62, 0, 0, 60),
+		Size = UDim2.new(0.38, -6, 0, 26),
 		Text = "",
 		TextColor3 = COLORS.Gold,
 		TextXAlignment = Enum.TextXAlignment.Right,
@@ -528,147 +547,371 @@ for index, f in Config.Footballers do
 	cards[f.Id] = { Name = nameLabel, Count = countLabel, Stroke = cardStroke }
 end
 
--- ============================================================
--- Botones laterales
--- ============================================================
-local sideButtons = create("Frame", {
-	AnchorPoint = Vector2.new(0, 0.5),
-	Position = UDim2.new(0, 12, 0.5, 0),
-	Size = UDim2.new(0, 150, 0, 124),
-	BackgroundTransparency = 1,
-	Parent = gui,
-}, {
-	create("UIListLayout", { Padding = UDim.new(0, 10) }),
+-- ---------------- Plantilla ----------------
+local squadWindow, squadContent = makeWindow("⚽ Tu plantilla", Color3.fromRGB(40, 160, 80))
+local squadInfo = textLabel({
+	Size = UDim2.new(0.55, 0, 0, 30),
+	Text = "",
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ZIndex = 12,
+	Parent = squadContent,
 })
-local shopButton = button({ Size = UDim2.new(1, 0, 0, 56), Text = "🛒 Tienda", Parent = sideButtons }, COLORS.Gold)
-local collectionButton =
-	button({ Size = UDim2.new(1, 0, 0, 56), Text = "📖 Colección", Parent = sideButtons }, Color3.fromRGB(90, 120, 255))
+local slotButton = button({
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, 0, 0, 0),
+	Size = UDim2.new(0.44, 0, 0, 46),
+	Text = "",
+	ZIndex = 12,
+	Parent = squadContent,
+}, COLORS.Green)
+textLabel({
+	Position = UDim2.new(0, 0, 0, 30),
+	Size = UDim2.new(0.55, 0, 0, 20),
+	Text = "Si se llena, te quedas con los mejores",
+	TextColor3 = COLORS.Muted,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ZIndex = 12,
+	Parent = squadContent,
+})
+local squadList = scrollList(squadContent, 58, create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }))
+
+slotButton.Activated:Connect(function()
+	local ok, message = PurchaseFunction:InvokeServer("Slot")
+	toast(message, if ok then COLORS.Green else COLORS.Red)
+end)
+
+local function rebuildSquadList()
+	for _, child in squadList:GetChildren() do
+		if child:IsA("Frame") then
+			child:Destroy()
+		end
+	end
+	if not data then
+		return
+	end
+	local members = {}
+	for _, id in data.Squad do
+		local f = Config.GetFootballer(id)
+		if f then
+			table.insert(members, f)
+		end
+	end
+	table.sort(members, function(a, b)
+		return a.Income > b.Income
+	end)
+	for order, f in members do
+		local rarity = Config.Rarities[f.Rarity]
+		local row = create("Frame", {
+			LayoutOrder = order,
+			Size = UDim2.new(1, -10, 0, 54),
+			BackgroundColor3 = COLORS.PanelLight,
+			ZIndex = 13,
+			Parent = squadList,
+		}, { corner(10), stroke(rarity.Color, 2) })
+		textLabel({
+			Position = UDim2.new(0, 12, 0, 4),
+			Size = UDim2.new(0.6, -12, 0, 28),
+			Text = f.Name,
+			TextColor3 = rarity.Color,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = 14,
+			Parent = row,
+		})
+		textLabel({
+			Position = UDim2.new(0, 12, 0, 30),
+			Size = UDim2.new(0.6, -12, 0, 20),
+			Text = "💰 " .. Config.FormatShort(f.Income) .. "/s · " .. rarity.Name,
+			TextColor3 = COLORS.Money,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = 14,
+			Parent = row,
+		})
+		local sell = button({
+			AnchorPoint = Vector2.new(1, 0.5),
+			Position = UDim2.new(1, -8, 0.5, 0),
+			Size = UDim2.new(0.36, 0, 0, 40),
+			Text = "Vender 💰" .. Config.FormatShort(Config.GetSellPrice(f)),
+			ZIndex = 14,
+			Parent = row,
+		}, COLORS.Red)
+		sell.Activated:Connect(function()
+			local ok, message = PurchaseFunction:InvokeServer("Sell", f.Id)
+			toast(message, if ok then COLORS.Gold else COLORS.Red)
+		end)
+	end
+end
+
+-- ---------------- Botones laterales ----------------
+local leftButtons = create("Frame", {
+	AnchorPoint = Vector2.new(0, 0.5),
+	Position = UDim2.new(0, 12, 0.45, 0),
+	Size = UDim2.new(0, 96, 0, 210),
+	BackgroundTransparency = 1,
+	Parent = hud,
+}, { create("UIListLayout", { Padding = UDim.new(0, 10) }) })
+
+local function sideButton(parent: Instance, text: string, color: Color3): TextButton
+	local b = button({ Size = UDim2.new(1, 0, 0, 96), Text = text, Parent = parent }, color)
+	stroke(Color3.new(0, 0, 0), 3).Parent = b
+	return b
+end
+local shopButton = sideButton(leftButtons, "🛒\nTienda", Color3.fromRGB(200, 70, 200))
+local indexButton = sideButton(leftButtons, "📖\nÍndice", Color3.fromRGB(60, 110, 230))
+
+local rightButtons = create("Frame", {
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -12, 0.45, 0),
+	Size = UDim2.new(0, 96, 0, 96),
+	BackgroundTransparency = 1,
+	Parent = hud,
+})
+local squadButton = sideButton(rightButtons, "⚽\nPlantilla", Color3.fromRGB(40, 160, 80))
+
 shopButton.Activated:Connect(function()
 	toggleWindow(shopWindow)
 end)
-collectionButton.Activated:Connect(function()
-	toggleWindow(collectionWindow)
+indexButton.Activated:Connect(function()
+	toggleWindow(indexWindow)
+end)
+squadButton.Activated:Connect(function()
+	toggleWindow(squadWindow)
 end)
 
 -- ============================================================
--- Popup de resultado (el futbolista que te salió)
+-- Revelación del futbolista
 -- ============================================================
-local resultPopup = create("Frame", {
-	AnchorPoint = Vector2.new(0.5, 0.5),
-	Position = UDim2.fromScale(0.5, 0.36),
-	Size = UDim2.fromScale(0.8, 0.26),
-	BackgroundColor3 = COLORS.Panel,
-	BackgroundTransparency = 0.1,
+local revealGui = create("Frame", {
+	Size = UDim2.fromScale(1, 1),
+	BackgroundTransparency = 1,
 	Visible = false,
 	ZIndex = 20,
 	Parent = gui,
-}, {
-	corner(18),
-	create("UISizeConstraint", { MaxSize = Vector2.new(460, 190) }),
 })
-local resultStroke = stroke(COLORS.Gold, 4)
-resultStroke.Parent = resultPopup
-local resultScale = create("UIScale", { Scale = 1, Parent = resultPopup })
-
-local resultTop = textLabel({
-	Position = UDim2.fromScale(0.05, 0.05),
-	Size = UDim2.fromScale(0.9, 0.18),
-	Text = "¡TE SALIÓ!",
-	TextColor3 = COLORS.Muted,
-	ZIndex = 21,
-	Parent = resultPopup,
-})
-local resultName = textLabel({
-	Position = UDim2.fromScale(0.05, 0.23),
-	Size = UDim2.fromScale(0.9, 0.32),
+local revealBox = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -20),
+	Size = UDim2.new(0.9, 0, 0, 220),
+	BackgroundTransparency = 1,
+	ZIndex = 20,
+	Parent = revealGui,
+}, { create("UISizeConstraint", { MaxSize = Vector2.new(700, 220) }) })
+local revealName = textLabel({
+	Size = UDim2.new(1, 0, 0, 80),
 	Text = "",
 	TextStrokeTransparency = 0,
 	ZIndex = 21,
-	Parent = resultPopup,
+	Parent = revealBox,
 })
-local resultRarity = textLabel({
-	Position = UDim2.fromScale(0.05, 0.55),
-	Size = UDim2.fromScale(0.9, 0.18),
-	Text = "",
-	ZIndex = 21,
-	Parent = resultPopup,
+create("UIStroke", { Thickness = 3, Color = Color3.new(0, 0, 0), Parent = revealName })
+local newBadge = textLabel({
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.new(0.86, 0, 0, 10),
+	Size = UDim2.new(0, 130, 0, 46),
+	BackgroundTransparency = 0,
+	BackgroundColor3 = Color3.fromRGB(255, 150, 30),
+	Rotation = -12,
+	Text = "¡NUEVO!",
+	TextStrokeTransparency = 0,
+	Visible = false,
+	ZIndex = 22,
+	Parent = revealBox,
 })
-local resultInfo = textLabel({
-	Position = UDim2.fromScale(0.05, 0.75),
-	Size = UDim2.fromScale(0.9, 0.18),
+corner(10).Parent = newBadge
+stroke(Color3.fromRGB(120, 50, 0), 3).Parent = newBadge
+local revealRarity = textLabel({
+	Position = UDim2.new(0, 0, 0, 82),
+	Size = UDim2.new(1, 0, 0, 30),
 	Text = "",
-	TextColor3 = COLORS.Gold,
+	TextStrokeTransparency = 0,
 	ZIndex = 21,
-	Parent = resultPopup,
+	Parent = revealBox,
+})
+local revealIncome = textLabel({
+	Position = UDim2.new(0, 0, 0, 114),
+	Size = UDim2.new(1, 0, 0, 40),
+	Text = "",
+	TextColor3 = COLORS.Money,
+	TextStrokeTransparency = 0,
+	ZIndex = 21,
+	Parent = revealBox,
+})
+local revealSquad = textLabel({
+	Position = UDim2.new(0, 0, 0, 156),
+	Size = UDim2.new(1, 0, 0, 26),
+	Text = "",
+	TextStrokeTransparency = 0,
+	ZIndex = 21,
+	Parent = revealBox,
+})
+local revealContinue = textLabel({
+	Position = UDim2.new(0, 0, 0, 188),
+	Size = UDim2.new(1, 0, 0, 24),
+	Text = "Haz clic para continuar",
+	TextColor3 = COLORS.Muted,
+	TextStrokeTransparency = 0,
+	ZIndex = 21,
+	Parent = revealBox,
 })
 
-local popupId = 0
-local function showResult(result: any)
-	local f = Config.GetFootballer(result.FootballerId)
-	if not f then
-		return
+local SKIN = Color3.fromRGB(245, 205, 48)
+local BOOTS = Color3.fromRGB(25, 25, 25)
+local ANIM_WALK = "rbxassetid://507777826" -- animaciones R15 por defecto de Roblox
+local ANIM_CHEER = "rbxassetid://507770677"
+
+local function partColor(partName: string, f: Config.Footballer): Color3
+	if partName == "Head" or partName:find("LowerArm") or partName:find("Hand") then
+		return SKIN
+	elseif partName:find("Foot") then
+		return BOOTS
+	elseif partName:find("UpperLeg") then
+		return f.Shorts
 	end
+	return f.Shirt -- torso, brazos y medias
+end
+
+local function playAnimation(model: Model, id: string, looped: boolean): AnimationTrack?
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return nil
+	end
+	local ok, track = pcall(function()
+		local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
+		local animation = Instance.new("Animation")
+		animation.AnimationId = id
+		local t = animator:LoadAnimation(animation)
+		t.Looped = looped
+		t:Play()
+		return t
+	end)
+	return if ok then track else nil
+end
+
+local function spawnFootballer(f: Config.Footballer, landing: Vector3): Model?
+	local template = Assets:FindFirstChild("FootballerRig")
+	if not template then
+		return nil
+	end
+	local model = template:Clone() :: Model
+	model.Name = f.Name
+	for _, obj in model:GetDescendants() do
+		if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
+			obj.Color = partColor(obj.Name, f)
+		end
+	end
+
+	-- Brillo del color de la rareza para los buenos
 	local rarity = Config.Rarities[f.Rarity]
-	popupId += 1
-	local myId = popupId
+	if rarity.Order >= Config.Rarities.Raro.Order then
+		create("Highlight", {
+			FillColor = rarity.Color,
+			FillTransparency = 0.75,
+			OutlineColor = rarity.Color,
+			Parent = model,
+		})
+	end
+	model.Parent = workspace
 
-	resultTop.Text = if result.IsNew then "✨ ¡NUEVO FICHAJE! ✨" else "¡TE SALIÓ!"
-	resultName.Text = string.upper(f.Name)
-	resultName.TextColor3 = rarity.Color
-	resultRarity.Text = rarity.Name .. " · 1 en " .. Config.FormatNumber(f.Chance)
-	resultRarity.TextColor3 = rarity.Color
-	resultInfo.Text = string.format(
-		"Zona %d (🍀 x%s) · +%s 💰",
-		result.Zone,
-		Config.FormatLuck(result.Luck),
-		Config.FormatNumber(result.Coins + result.Bonus)
-	)
-	resultStroke.Color = rarity.Color
+	-- Ajustamos la altura para que los pies toquen el piso (y = 0)
+	model:PivotTo(CFrame.new(landing.X, 0, landing.Z))
+	local box, size = model:GetBoundingBox()
+	local lift = -(box.Position.Y - size.Y / 2)
 
-	resultPopup.Visible = true
-	resultScale.Scale = 0.3
-	TweenService:Create(resultScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
-		:Play()
+	-- Camina desde un costado hasta el balón
+	local ground = Vector3.new(landing.X, lift, landing.Z)
+	local from = ground + Vector3.new(12, 0, 10)
+	local to = ground + Vector3.new(2.8, 0, 1.5)
+	model:PivotTo(CFrame.lookAt(from, Vector3.new(landing.X, lift, landing.Z)))
 
-	task.delay(3.5, function()
-		if popupId == myId then
-			resultPopup.Visible = false
+	task.spawn(function()
+		local walk = playAnimation(model, ANIM_WALK, true)
+		local duration = 1.6
+		local started = os.clock()
+		while model.Parent do
+			local alpha = math.min((os.clock() - started) / duration, 1)
+			local pos = from:Lerp(to, alpha)
+			model:PivotTo(CFrame.lookAt(pos, Vector3.new(landing.X, lift, landing.Z)))
+			if alpha >= 1 then
+				break
+			end
+			RunService.Heartbeat:Wait()
+		end
+		if walk then
+			walk:Stop(0.2)
+		end
+		if model.Parent then
+			-- Voltea hacia la cámara y festeja
+			local camPos = camera.CFrame.Position
+			model:PivotTo(CFrame.lookAt(to, Vector3.new(camPos.X, lift, camPos.Z)))
+			playAnimation(model, ANIM_CHEER, false)
 		end
 	end)
+	return model
+end
+
+-- Mayúsculas que también entienden los acentos (string.upper solo cambia a-z)
+local ACCENTS = { ["á"] = "Á", ["é"] = "É", ["í"] = "Í", ["ó"] = "Ó", ["ú"] = "Ú", ["ñ"] = "Ñ", ["ü"] = "Ü" }
+local function upperSpanish(text: string): string
+	local upper = string.upper(text)
+	for lower, capital in ACCENTS do
+		upper = upper:gsub(lower, capital)
+	end
+	return upper
+end
+
+-- Escribe el nombre letra por letra (usando utf8 para no romper los acentos)
+local function typeName(label: TextLabel, text: string, revealToken: number, getToken: () -> number)
+	local letters = {}
+	for _, code in utf8.codes(text) do
+		table.insert(letters, utf8.char(code))
+	end
+	for i = 1, #letters do
+		if getToken() ~= revealToken then
+			return
+		end
+		label.Text = table.concat(letters, "", 1, i) .. string.rep("_", #letters - i)
+		task.wait(0.06)
+	end
+	label.Text = text
 end
 
 -- ============================================================
 -- Actualizar la UI con los datos del jugador
 -- ============================================================
+local function getIncome(): number
+	local total = 0
+	if data then
+		for _, id in data.Squad do
+			local f = Config.GetFootballer(id)
+			if f then
+				total += f.Income
+			end
+		end
+	end
+	return total
+end
+
+local function refreshCoins()
+	coinsStat.Text = "💰 " .. Config.FormatShort(coins)
+	if not data then
+		return
+	end
+	for tier, row in ballRows do
+		if tier == data.BallTier + 1 then
+			row.Button.BackgroundColor3 = if coins >= Config.Balls[tier].Price then COLORS.Green else COLORS.Gray
+		end
+	end
+	if data.Slots < Config.MAX_SLOTS then
+		slotButton.BackgroundColor3 = if coins >= Config.GetSlotCost(data.Slots) then COLORS.Green else COLORS.Gray
+	end
+end
+
 local function refreshUI()
 	if not data then
 		return
 	end
-	local ball = Config.Balls[data.BallTier]
-	local power = Config.GetKickPower(data.Strength, data.BallTier)
-
-	coinsPill.Text = "💰 " .. Config.FormatNumber(data.Coins)
-	strengthPill.Text = "💪 Fuerza " .. data.Strength
-	ballPill.Text = "⚽ " .. ball.Name
-	powerInfo.Text = string.format(
-		"Potencia: %s m  ·  Récord: %s m",
-		Config.FormatNumber(power),
-		Config.FormatNumber(data.BestDistance)
-	)
-
-	-- Fuerza
-	if data.Strength >= Config.MAX_STRENGTH then
-		strengthTitle.Text = "💪 Fuerza " .. data.Strength .. " (MÁX)"
-		strengthDesc.Text = "¡No se puede mejorar más!"
-		strengthButton.Text = "MÁXIMO"
-		strengthButton.BackgroundColor3 = COLORS.Gray
-	else
-		local cost = Config.GetStrengthCost(data.Strength)
-		strengthTitle.Text = "💪 Fuerza " .. data.Strength .. " → " .. (data.Strength + 1)
-		strengthDesc.Text = "+" .. Config.POWER_PER_STRENGTH .. " de potencia base"
-		strengthButton.Text = "💰 " .. Config.FormatNumber(cost)
-		strengthButton.BackgroundColor3 = if data.Coins >= cost then COLORS.Green else COLORS.Gray
-	end
+	local income = getIncome()
+	powerStat.Text = "💪 " .. Config.FormatShort(data.Power)
+	incomeStat.Text = "📈 +" .. Config.FormatShort(income) .. "/s"
 
 	-- Balones
 	for tier, row in ballRows do
@@ -680,15 +923,14 @@ local function refreshUI()
 			row.Button.Text = "✅ USANDO"
 			row.Button.BackgroundColor3 = COLORS.GreenDark
 		elseif tier == data.BallTier + 1 then
-			row.Button.Text = "💰 " .. Config.FormatNumber(info.Price)
-			row.Button.BackgroundColor3 = if data.Coins >= info.Price then COLORS.Green else COLORS.Gray
+			row.Button.Text = "💰 " .. Config.FormatShort(info.Price)
 		else
-			row.Button.Text = "🔒 " .. Config.FormatNumber(info.Price)
+			row.Button.Text = "🔒 " .. Config.FormatShort(info.Price)
 			row.Button.BackgroundColor3 = Color3.fromRGB(60, 62, 75)
 		end
 	end
 
-	-- Colección
+	-- Índice
 	local owned = 0
 	for _, f in Config.Footballers do
 		local count = data.Collection[f.Id] or 0
@@ -696,19 +938,36 @@ local function refreshUI()
 		if count > 0 then
 			owned += 1
 			card.Name.Text = f.Name
-			card.Count.Text = "x" .. Config.FormatNumber(count)
+			card.Count.Text = "x" .. Config.FormatShort(count)
 			card.Stroke.Transparency = 0
 		else
 			card.Name.Text = "???"
 			card.Count.Text = ""
-			card.Stroke.Transparency = 0.6
+			card.Stroke.Transparency = 0.7
 		end
 	end
-	collectionCount.Text = string.format("Tienes %d de %d futbolistas", owned, #Config.Footballers)
+	indexCount.Text = string.format("Has descubierto %d de %d futbolistas", owned, #Config.Footballers)
+
+	-- Plantilla
+	squadInfo.Text = string.format("%d/%d · 💰 %s/s", #data.Squad, data.Slots, Config.FormatShort(income))
+	if data.Slots >= Config.MAX_SLOTS then
+		slotButton.Text = "Espacios al máximo"
+		slotButton.BackgroundColor3 = COLORS.Gray
+	else
+		slotButton.Text = string.format(
+			"Espacios %d → %d · 💰%s",
+			data.Slots,
+			data.Slots + 1,
+			Config.FormatShort(Config.GetSlotCost(data.Slots))
+		)
+	end
+	rebuildSquadList()
+	refreshCoins()
 end
 
 DataUpdatedEvent.OnClientEvent:Connect(function(newData)
 	data = newData
+	coins = newData.Coins
 	refreshUI()
 end)
 
@@ -716,24 +975,38 @@ task.spawn(function()
 	local initial = GetDataFunction:InvokeServer()
 	if initial and not data then
 		data = initial
+		coins = initial.Coins
 		refreshUI()
 	end
+end)
+
+-- Monedas en vivo (los futbolistas pagan cada segundo)
+task.spawn(function()
+	local stats = player:WaitForChild("leaderstats")
+	local coinsValue = stats:WaitForChild("Monedas") :: IntValue
+	coinsValue.Changed:Connect(function(value)
+		coins = value
+		refreshCoins()
+	end)
+	coins = coinsValue.Value
+	refreshCoins()
 end)
 
 -- ============================================================
 -- Patear
 -- ============================================================
-local function setKickButtonState()
-	if kicking then
-		kickButton.Text = "⏳ Volando..."
-		kickButton.BackgroundColor3 = COLORS.Gray
-	else
-		kickButton.Text = "⚽ PATEAR  (clic o F)"
-		kickButton.BackgroundColor3 = COLORS.Green
+local function setKickingState(value: boolean)
+	kicking = value
+	hud.Visible = not value
+	if value and openWindow then
+		openWindow.Visible = false
+		openWindow = nil
 	end
 end
 
 local function restoreCamera()
+	cameraMode = "normal"
+	camera.CameraType = Enum.CameraType.Custom
 	local character = player.Character
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	if humanoid then
@@ -742,59 +1015,173 @@ local function restoreCamera()
 end
 
 local kickId = 0
+local revealModel: Model? = nil
+local waitingForContinue = false
+
 local function finishKick(myKick: number)
 	if kickId ~= myKick then
 		return
 	end
+	kickId += 1 -- invalida temporizadores pendientes
+	waitingForContinue = false
 	flyingBall = nil
-	flightLabel.Visible = false
+	flightHud.Visible = false
+	revealGui.Visible = false
+	if revealModel then
+		revealModel:Destroy()
+		revealModel = nil
+	end
 	restoreCamera()
-	kicking = false
-	setKickButtonState()
+	setKickingState(false)
 end
 
 local function kick()
 	if kicking or not data then
 		return
 	end
-	kicking = true
+	setKickingState(true)
 	kickId += 1
 	local myKick = kickId
-	setKickButtonState()
 	KickEvent:FireServer(needleValue)
 	-- Por si el servidor no responde
-	task.delay(12, function()
-		finishKick(myKick)
+	task.delay(15, function()
+		if not waitingForContinue then
+			finishKick(myKick)
+		end
 	end)
 end
 
 kickButton.Activated:Connect(kick)
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if waitingForContinue then
+		local isClick = input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+			or input.KeyCode == Enum.KeyCode.F
+			or input.KeyCode == Enum.KeyCode.Space
+		if isClick then
+			finishKick(kickId)
+		end
+		return
+	end
 	if not gameProcessed and input.KeyCode == Enum.KeyCode.F then
 		kick()
 	end
 end)
 
-BallLaunchedEvent.OnClientEvent:Connect(function(ball: BasePart?, _flightTime: number, perfect: boolean)
-	if perfect then
-		toast("⭐ ¡PATADA PERFECTA! ⭐", COLORS.Gold)
+local function floatText(label: TextLabel, text: string, startPos: UDim2)
+	label.Text = text
+	label.Position = startPos
+	label.TextTransparency = 0
+	label.TextStrokeTransparency = 0
+	label.Visible = true
+	popIn(label)
+	local tween = TweenService:Create(label, TweenInfo.new(1.4, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Position = startPos - UDim2.fromOffset(0, 60),
+		TextTransparency = 1,
+		TextStrokeTransparency = 1,
+	})
+	tween:Play()
+	tween.Completed:Connect(function()
+		label.Visible = false
+	end)
+end
+
+BallLaunchedEvent.OnClientEvent:Connect(function(ball: BasePart?, info: any)
+	floatText(powerGainLabel, "+" .. info.PowerGain .. " PODER", UDim2.new(0.5, 150, 0.45, 0))
+	if info.Perfect then
+		floatText(perfectLabel, "¡PERFECTO!", UDim2.new(0.5, 0, 0.62, 0))
+	end
+	if data then
+		data.Power = info.Power
+		powerStat.Text = "💪 " .. Config.FormatShort(info.Power)
 	end
 	if ball then
 		flyingBall = ball
-		camera.CameraSubject = ball
-		camera.CFrame = CFrame.lookAt(ball.Position + Vector3.new(0, 10, -24), ball.Position + Vector3.new(0, 2, 10))
-		flightLabel.Visible = true
+		cameraMode = "chase"
+		camera.CameraType = Enum.CameraType.Scriptable
+		flightHud.Visible = true
 	end
 end)
 
 KickResultEvent.OnClientEvent:Connect(function(result)
-	showResult(result)
+	local f = Config.GetFootballer(result.FootballerId)
+	if not f then
+		finishKick(kickId)
+		return
+	end
+	local rarity = Config.Rarities[f.Rarity]
+	local myKick = kickId
+	local landing: Vector3 = result.Landing
+
+	-- Cámara de revelación: cerca del balón, a la altura del futbolista
+	flyingBall = nil
+	cameraMode = "reveal"
+	camera.CameraType = Enum.CameraType.Scriptable
+	local camFrom = CFrame.lookAt(landing + Vector3.new(-9, 7, -16), landing + Vector3.new(2, 2.5, 0))
+	local camTo = CFrame.lookAt(landing + Vector3.new(-5, 4.5, -11), landing + Vector3.new(2, 2.5, 0))
+	camera.CFrame = camFrom
+	TweenService:Create(camera, TweenInfo.new(2.2, Enum.EasingStyle.Sine), { CFrame = camTo }):Play()
+
+	flightHud.Visible = false
+	revealModel = spawnFootballer(f, landing)
+
+	-- Textos
+	revealName.TextColor3 = rarity.Color
+	revealRarity.Text = rarity.Name .. " · 1 en " .. Config.FormatNumber(f.Chance)
+	revealRarity.TextColor3 = rarity.Color
+	revealIncome.Text = "💰 " .. Config.FormatShort(f.Income) .. "/s"
+	newBadge.Visible = result.IsNew
+	if result.SquadStatus == "Fichado" then
+		revealSquad.Text = "✅ ¡Fichado a tu plantilla!"
+		revealSquad.TextColor3 = COLORS.Green
+	elseif result.SquadStatus == "Reemplazo" then
+		local replaced = Config.GetFootballer(result.ReplacedId)
+		revealSquad.Text = string.format(
+			"🔄 Reemplazó a %s (vendido por 💰%s)",
+			if replaced then replaced.Name else "?",
+			Config.FormatShort(result.SaleCoins)
+		)
+		revealSquad.TextColor3 = COLORS.Gold
+	else
+		revealSquad.Text = "💸 Plantilla llena: vendido por 💰" .. Config.FormatShort(result.SaleCoins)
+		revealSquad.TextColor3 = COLORS.Muted
+	end
 	if result.NewRecord then
 		toast("🏆 ¡NUEVO RÉCORD: " .. Config.FormatNumber(result.Distance) .. " m!", COLORS.Gold)
 	end
-	local myKick = kickId
-	task.delay(2.5, function()
-		finishKick(myKick)
+
+	revealRarity.Visible = false
+	revealIncome.Visible = false
+	revealSquad.Visible = false
+	revealContinue.Visible = false
+	revealGui.Visible = true
+
+	task.spawn(function()
+		task.wait(1.1)
+		typeName(revealName, upperSpanish(f.Name), myKick, function()
+			return kickId
+		end)
+		if kickId ~= myKick then
+			return
+		end
+		popIn(revealName)
+		revealRarity.Visible = true
+		revealIncome.Visible = true
+		revealSquad.Visible = true
+		if result.IsNew then
+			popIn(newBadge)
+		end
+		task.wait(0.6)
+		if kickId ~= myKick then
+			return
+		end
+		revealContinue.Visible = true
+		waitingForContinue = true
+		-- Se cierra solo después de un rato
+		task.delay(8, function()
+			finishKick(myKick)
+		end)
 	end)
 end)
 
@@ -813,26 +1200,43 @@ AnnouncementEvent.OnClientEvent:Connect(function(text: string, color: Color3)
 end)
 
 -- ============================================================
--- Animación de la barra y del texto de vuelo
+-- Cada cuadro: barra, cámara y HUD de vuelo
 -- ============================================================
+local lastBiome = ""
+
 RunService.RenderStepped:Connect(function(dt)
 	if not kicking then
 		needleTime += dt
 		-- Onda triangular: 0 -> 1 -> 0
 		needleValue = 1 - math.abs((needleTime / NEEDLE_PERIOD) % 2 - 1)
-		needle.Position = UDim2.fromScale(needleValue, 0.5)
+		needle.Position = UDim2.fromScale(0.5, 1 - needleValue)
 	end
 
 	local ball = flyingBall
-	if ball and ball.Parent then
-		local distance = math.max(ball.Position.Z, 0)
+	if cameraMode == "chase" and ball and ball.Parent then
+		local target = ball.Position
+		local desired = CFrame.lookAt(target + Vector3.new(0, 7, -26), target + Vector3.new(0, -1, 30))
+		camera.CFrame = camera.CFrame:Lerp(desired, math.min(dt * 8, 1))
+
+		local distance = math.max(target.Z, 0)
 		local zone = Config.GetZoneFromDistance(distance)
-		flightLabel.Text = string.format(
-			"📏 %s m  ·  ZONA %d  ·  🍀 x%s",
-			Config.FormatNumber(distance),
-			zone,
-			Config.FormatLuck(Config.GetLuck(zone))
-		)
-		flightLabel.TextColor3 = Config.GetZoneColor(zone):Lerp(Color3.new(1, 1, 1), 0.4)
+		local biome = Config.GetBiome(zone)
+		luckLabel.Text = "x" .. Config.FormatLuck(Config.GetLuckAtDistance(distance))
+		distanceLabel.Text = string.format("📏 %s m · Zona %d", Config.FormatNumber(distance), zone)
+		if biome.Name ~= lastBiome then
+			lastBiome = biome.Name
+			biomeLabel.Text = biome.Name .. " " .. biome.Emoji
+			biomeLabel.TextColor3 = biome.Ground:Lerp(Color3.new(1, 1, 1), 0.35)
+			popIn(biomeLabel)
+		end
+	elseif cameraMode ~= "chase" then
+		lastBiome = ""
+	end
+end)
+
+-- Si reapareces, la cámara vuelve a ti
+player.CharacterAdded:Connect(function()
+	if cameraMode == "normal" then
+		task.defer(restoreCamera)
 	end
 end)

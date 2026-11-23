@@ -3,28 +3,35 @@
 -- para que se guarde mientras pruebas.
 local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+
+local Config = require(ReplicatedStorage.Shared.Config)
 
 local STORE_NAME = "PateaElBalon_v1"
 local AUTOSAVE_SECONDS = 120
 
 export type PlayerData = {
 	Coins: number,
-	Strength: number,
+	Power: number,
 	BallTier: number,
 	BestDistance: number,
 	TotalKicks: number,
-	Collection: { [string]: number },
+	Collection: { [string]: number }, -- cuántas veces te salió cada futbolista (Índice)
+	Squad: { string }, -- ids de los futbolistas en tu plantilla
+	Slots: number, -- espacios de la plantilla
 }
 
 local function defaultData(): PlayerData
 	return {
 		Coins = 0,
-		Strength = 1,
+		Power = Config.START_POWER,
 		BallTier = 1,
 		BestDistance = 0,
 		TotalKicks = 0,
 		Collection = {},
+		Squad = {},
+		Slots = Config.START_SLOTS,
 	}
 end
 
@@ -60,6 +67,15 @@ local function reconcile(saved: any): PlayerData
 			end
 		end
 	end
+	-- Quitamos futbolistas que ya no existan en Config (por si cambiaste la lista)
+	local squad = {}
+	for _, id in data.Squad do
+		if Config.GetFootballer(id) and #squad < data.Slots then
+			table.insert(squad, id)
+		end
+	end
+	data.Squad = squad
+	data.BallTier = math.clamp(data.BallTier, 1, #Config.Balls)
 	return data
 end
 

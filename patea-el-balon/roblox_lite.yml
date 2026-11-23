@@ -41,3 +41,5 @@ globals:
     any: true
   warn:
     any: true
+  utf8:
+    any: true
