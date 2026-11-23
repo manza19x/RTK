@@ -10,6 +10,8 @@ local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local KickAnimation = require(script.Parent:WaitForChild("KickAnimation"))
+local Moves = require(script.Parent:WaitForChild("FootballerMoves"))
+local FootballerLook = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("FootballerLook"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local Assets = ReplicatedStorage:WaitForChild("Assets")
 local KickEvent = Remotes:WaitForChild("Kick") :: RemoteEvent
@@ -962,25 +964,37 @@ local revealContinue = textLabel({
 	Parent = revealBox,
 })
 
-local ANIM_WALK = "rbxassetid://507777826" -- animaciones R15 por defecto de Roblox
-local ANIM_CHEER = "rbxassetid://507770677"
+-- Festejo según la rareza
+local CELEBRATIONS = {
+	Comun = "Wave",
+	PocoComun = "Wave",
+	Raro = "Cheer",
+	Epico = "Dance2",
+	Legendario = "Dance",
+	Mitico = "Dance3",
+	Secreto = "Dance3",
+}
 
-local function playAnimation(model: Model, id: string, looped: boolean): AnimationTrack?
-	local humanoid = model:FindFirstChildOfClass("Humanoid")
-	if not humanoid then
-		return nil
+-- Escondemos (solo en tu pantalla) el balón del servidor para usar el de las dominadas
+local function hideServerBall(landing: Vector3)
+	local folder = workspace:FindFirstChild("Balones")
+	if not folder then
+		return
 	end
-	local ok, track = pcall(function()
-		local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
-		local animation = Instance.new("Animation")
-		animation.AnimationId = id
-		local t = animator:LoadAnimation(animation)
-		t.Looped = looped
-		t:Play()
-		return t
-	end)
-	return if ok then track else nil
+	for _, ball in folder:GetChildren() do
+		if ball:IsA("BasePart") and (ball.Position - landing).Magnitude < 8 then
+			ball.Transparency = 1
+			for _, fx in ball:GetDescendants() do
+				if fx:IsA("Trail") or fx:IsA("ParticleEmitter") then
+					fx.Enabled = false
+				end
+			end
+		end
+	end
 end
+
+local revealFocus: Vector3? = nil -- a dónde mira la cámara de revelación
+local revealStarted = 0
 
 local function spawnFootballer(f: Config.Footballer, landing: Vector3): Model?
 	local template = Assets:FindFirstChild("FootballerRig")
@@ -989,22 +1003,7 @@ local function spawnFootballer(f: Config.Footballer, landing: Vector3): Model?
 	end
 	local model = template:Clone() :: Model
 	model.Name = f.Name
-	for _, obj in model:GetDescendants() do
-		if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
-			obj.Color = Config.GetPartColor(obj.Name, f)
-		end
-	end
-
-	-- Brillo del color de la rareza para los buenos
-	local rarity = Config.Rarities[f.Rarity]
-	if rarity.Order >= Config.Rarities.Raro.Order then
-		create("Highlight", {
-			FillColor = rarity.Color,
-			FillTransparency = 0.75,
-			OutlineColor = rarity.Color,
-			Parent = model,
-		})
-	end
+	FootballerLook.Dress(model, f)
 	model.Parent = workspace
 
 	-- Ajustamos la altura para que los pies toquen el piso (y = 0)
@@ -1012,33 +1011,48 @@ local function spawnFootballer(f: Config.Footballer, landing: Vector3): Model?
 	local box, size = model:GetBoundingBox()
 	local lift = -(box.Position.Y - size.Y / 2)
 
-	-- Camina desde un costado hasta el balón
 	local ground = Vector3.new(landing.X, lift, landing.Z)
-	local from = ground + Vector3.new(12, 0, 10)
-	local to = ground + Vector3.new(2.8, 0, 1.5)
-	model:PivotTo(CFrame.lookAt(from, Vector3.new(landing.X, lift, landing.Z)))
+	local from = ground + Vector3.new(18, 0, 14)
+	local to = ground + Vector3.new(0.4, 0, 1.6)
+	model:PivotTo(CFrame.lookAt(from, ground))
+	local ballInfo = Config.Balls[if data then data.BallTier else 1] or Config.Balls[1]
+	local celebration = CELEBRATIONS[f.Rarity] or "Cheer"
+	local rarity = Config.Rarities[f.Rarity]
 
 	task.spawn(function()
-		local walk = playAnimation(model, ANIM_WALK, true)
-		local duration = 1.6
+		-- 1) Llega corriendo hasta el balón
+		Moves.Play(model, "Run", true, 1.15)
+		local duration = 1.1
 		local started = os.clock()
 		while model.Parent do
 			local alpha = math.min((os.clock() - started) / duration, 1)
 			local pos = from:Lerp(to, alpha)
-			model:PivotTo(CFrame.lookAt(pos, Vector3.new(landing.X, lift, landing.Z)))
+			model:PivotTo(CFrame.lookAt(pos, pos + (to - from).Unit))
 			if alpha >= 1 then
 				break
 			end
 			RunService.Heartbeat:Wait()
 		end
-		if walk then
-			walk:Stop(0.2)
+		Moves.Stop(model, "Run", 0.15)
+		if not model.Parent then
+			return
+		end
+
+		-- 2) Mira a la cámara y hace dominadas con el balón
+		local camPos = camera.CFrame.Position
+		model:PivotTo(CFrame.lookAt(to, Vector3.new(camPos.X, lift, camPos.Z)))
+		hideServerBall(landing)
+		Moves.Juggle(model, 1.9, ballInfo.Color)
+		if not model.Parent then
+			return
+		end
+
+		-- 3) Festeja según su rareza
+		if rarity.Order >= Config.Rarities.Legendario.Order then
+			Moves.Jump(model, 2)
 		end
 		if model.Parent then
-			-- Voltea hacia la cámara y festeja
-			local camPos = camera.CFrame.Position
-			model:PivotTo(CFrame.lookAt(to, Vector3.new(camPos.X, lift, camPos.Z)))
-			playAnimation(model, ANIM_CHEER, false)
+			Moves.Play(model, celebration, true)
 		end
 	end)
 	return model
@@ -1112,16 +1126,6 @@ local function landingEffects(landing: Vector3, rarity: Config.Rarity)
 		}):Play()
 		Debris:AddItem(beam, 3.2)
 	end
-end
-
--- Mayúsculas que también entienden los acentos (string.upper solo cambia a-z)
-local ACCENTS = { ["á"] = "Á", ["é"] = "É", ["í"] = "Í", ["ó"] = "Ó", ["ú"] = "Ú", ["ñ"] = "Ñ", ["ü"] = "Ü" }
-local function upperSpanish(text: string): string
-	local upper = string.upper(text)
-	for lower, capital in ACCENTS do
-		upper = upper:gsub(lower, capital)
-	end
-	return upper
 end
 
 -- Escribe el nombre letra por letra (usando utf8 para no romper los acentos)
@@ -1300,6 +1304,7 @@ local function finishKick(myKick: number)
 	waitingForContinue = false
 	awaitingKickStart = false
 	flyingBall = nil
+	revealFocus = nil
 	flightHud.Visible = false
 	revealGui.Visible = false
 	if revealModel then
@@ -1508,10 +1513,8 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 	flyingBall = nil
 	cameraMode = "reveal"
 	camera.CameraType = Enum.CameraType.Scriptable
-	local camFrom = CFrame.lookAt(landing + Vector3.new(-9, 7, -16), landing + Vector3.new(2, 2.5, 0))
-	local camTo = CFrame.lookAt(landing + Vector3.new(-5, 4.5, -11), landing + Vector3.new(2, 2.5, 0))
-	camera.CFrame = camFrom
-	TweenService:Create(camera, TweenInfo.new(2.2, Enum.EasingStyle.Sine), { CFrame = camTo }):Play()
+	revealFocus = landing + Vector3.new(0.4, 0, 1.6)
+	revealStarted = os.clock()
 
 	flightHud.Visible = false
 	landingEffects(landing, rarity)
@@ -1552,7 +1555,7 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 
 	task.spawn(function()
 		task.wait(1.1)
-		typeName(revealName, upperSpanish(f.Name), myKick, function()
+		typeName(revealName, FootballerLook.Upper(f.Name), myKick, function()
 			return kickId
 		end)
 		if kickId ~= myKick then
@@ -1766,13 +1769,14 @@ end)
 -- Futbolistas caminando dentro de los corrales
 -- (cada jugador los mueve en su propia pantalla, así se ven fluidos)
 -- ============================================================
-type Wanderer = { Pen: Model, Target: Vector3?, WaitUntil: number, Walk: AnimationTrack? }
+type Wanderer = { Pen: Model, Target: Vector3?, WaitUntil: number, Busy: boolean }
 local wanderers: { [Model]: Wanderer } = {}
 local WALK_SPEED = 6
+local DANCES = { "Dance", "Dance2", "Dance3" }
 
 local function addWanderer(model: Instance, pen: Model)
 	if model:IsA("Model") and not wanderers[model] then
-		wanderers[model] = { Pen = pen, Target = nil, WaitUntil = os.clock() + math.random() * 3, Walk = nil }
+		wanderers[model] = { Pen = pen, Target = nil, WaitUntil = os.clock() + math.random() * 3, Busy = false }
 	end
 end
 
@@ -1795,6 +1799,53 @@ task.spawn(function()
 	end
 end)
 
+-- Voltea hacia ti si estás cerca (para saludarte)
+local function faceLocalPlayer(model: Model)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return
+	end
+	local pivot = model:GetPivot()
+	local target = Vector3.new(root.Position.X, pivot.Position.Y, root.Position.Z)
+	if (target - pivot.Position).Magnitude < 60 and (target - pivot.Position).Magnitude > 0.1 then
+		model:PivotTo(CFrame.lookAt(pivot.Position, target))
+	end
+end
+
+-- Algo divertido que hacer en vez de caminar
+local function doAction(model: Model, w: Wanderer)
+	w.Busy = true
+	task.spawn(function()
+		local roll = math.random()
+		if roll < 0.3 then
+			local f = Config.GetFootballer(model:GetAttribute("Id") or "")
+			local ballTier = math.random(1, #Config.Balls)
+			Moves.Juggle(model, 3 + math.random() * 2, Config.Balls[ballTier].Color)
+			if f and model.Parent and Config.Rarities[f.Rarity].Order >= Config.Rarities.Epico.Order then
+				Moves.Jump(model, 1)
+			end
+		elseif roll < 0.5 then
+			faceLocalPlayer(model)
+			Moves.Play(model, "Wave", false)
+			task.wait(2.5)
+		elseif roll < 0.7 then
+			local dance = DANCES[math.random(1, #DANCES)]
+			Moves.Play(model, dance, true)
+			task.wait(4 + math.random() * 3)
+			Moves.Stop(model, dance)
+		elseif roll < 0.85 then
+			faceLocalPlayer(model)
+			Moves.Play(model, "Cheer", false)
+			task.wait(2.5)
+		else
+			Moves.Stretch(model, 3)
+		end
+		w.Busy = false
+		w.WaitUntil = os.clock() + 1 + math.random() * 3
+	end)
+end
+
 RunService.Heartbeat:Connect(function(dt)
 	local now = os.clock()
 	local camPos = camera.CFrame.Position
@@ -1803,14 +1854,20 @@ RunService.Heartbeat:Connect(function(dt)
 			wanderers[model] = nil
 			continue
 		end
-		if now < w.WaitUntil then
+		if w.Busy or now < w.WaitUntil then
 			continue
 		end
 		local pivot = model:GetPivot()
-		if (pivot.Position - camPos).Magnitude > 250 then
+		local distance = (pivot.Position - camPos).Magnitude
+		if distance > 250 then
 			continue -- muy lejos, no hace falta moverlo
 		end
 		if not w.Target then
+			-- 45% de las veces hace algo divertido (si estás cerca para verlo)
+			if distance < 140 and math.random() < 0.45 then
+				doAction(model, w)
+				continue
+			end
 			local center = w.Pen:GetAttribute("Center") :: Vector3
 			local size = w.Pen:GetAttribute("Size") :: Vector3
 			w.Target = Vector3.new(
@@ -1818,10 +1875,7 @@ RunService.Heartbeat:Connect(function(dt)
 				pivot.Position.Y,
 				center.Z + (math.random() - 0.5) * (size.Z - 8)
 			)
-			w.Walk = w.Walk or playAnimation(model, ANIM_WALK, true)
-			if w.Walk and not w.Walk.IsPlaying then
-				w.Walk:Play()
-			end
+			Moves.Play(model, "Walk", true)
 		end
 		local target = w.Target :: Vector3
 		local offset = target - pivot.Position
@@ -1829,10 +1883,8 @@ RunService.Heartbeat:Connect(function(dt)
 		if offset.Magnitude <= step then
 			model:PivotTo(CFrame.lookAt(target, target + pivot.LookVector))
 			w.Target = nil
-			w.WaitUntil = now + 1 + math.random() * 4
-			if w.Walk then
-				w.Walk:Stop(0.2)
-			end
+			w.WaitUntil = now + 1 + math.random() * 3
+			Moves.Stop(model, "Walk")
 		else
 			local pos = pivot.Position + offset.Unit * step
 			model:PivotTo(CFrame.lookAt(pos, pos + offset.Unit))
@@ -1893,6 +1945,18 @@ RunService.RenderStepped:Connect(function(dt)
 			biomeLabel.TextColor3 = if inSpace then Color3.fromRGB(210, 170, 255) else zoneInfo.Field:Lerp(Color3.new(1, 1, 1), 0.45)
 			popIn(biomeLabel)
 		end
+	elseif cameraMode == "reveal" and revealFocus then
+		-- Se acerca y gira despacio alrededor del futbolista
+		local t = os.clock() - revealStarted
+		local zoom = math.clamp(t / 2.2, 0, 1)
+		zoom = zoom * zoom * (3 - 2 * zoom)
+		local radius = 20 - 9 * zoom
+		local height = 8 - 3.5 * zoom
+		local angle = -0.9 + t * 0.22
+		local focus = revealFocus :: Vector3
+		local camPos = focus + Vector3.new(math.sin(angle) * radius, height, -math.cos(angle) * radius)
+		camera.CFrame = CFrame.lookAt(camPos, focus + Vector3.new(0, 2.6, 0))
+		lastBiome = ""
 	elseif cameraMode ~= "chase" then
 		lastBiome = ""
 	end

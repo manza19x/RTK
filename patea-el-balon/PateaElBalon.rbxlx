@@ -280,6 +280,9 @@ export type Footballer = {
 	Chance: number,
 	Rarity: string,
 	Income: number, -- monedas por segundo
+	Number: number?, -- número de la camiseta
+	Hair: string?, -- "Corto", "Largo", "Cresta" o "Rapado"
+	HairColor: Color3?,
 	Shirt: Color3,
 	Shorts: Color3,
 }
@@ -305,6 +308,35 @@ Config.Footballers = {
 	{ Id = "messi", Name = "Messi", Chance = 250000, Rarity = "Secreto", Income = 6000, Shirt = Color3.fromRGB(245, 140, 170), Shorts = Color3.fromRGB(20, 20, 20) },
 	{ Id = "cristiano", Name = "Cristiano Ronaldo", Chance = 1000000, Rarity = "Secreto", Income = 15000, Shirt = Color3.fromRGB(20, 120, 60), Shorts = Color3.fromRGB(250, 250, 250) },
 } :: { Footballer }
+
+-- Número de camiseta y peinado de cada futbolista
+local BROWN, BLACK, BLONDE, LIGHT_BROWN = rgb(70, 45, 30), rgb(30, 25, 25), rgb(235, 205, 115), rgb(130, 85, 50)
+local looks = {
+	canterano = { 22, "Corto", LIGHT_BROWN },
+	gavi = { 6, "Corto", BLACK },
+	kounde = { 23, "Rapado", BLACK },
+	valverde = { 8, "Corto", BROWN },
+	rodri = { 16, "Corto", BROWN },
+	pedri = { 8, "Corto", BLACK },
+	rodrygo = { 11, "Corto", BLACK },
+	saka = { 7, "Rapado", BLACK },
+	musiala = { 10, "Corto", BROWN },
+	wirtz = { 10, "Corto", LIGHT_BROWN },
+	yamal = { 19, "Cresta", BLACK },
+	bellingham = { 5, "Rapado", BLACK },
+	vinicius = { 7, "Largo", BLACK },
+	salah = { 11, "Largo", BLACK },
+	mbappe = { 10, "Rapado", BLACK },
+	haaland = { 9, "Largo", BLONDE },
+	messi = { 10, "Corto", BROWN },
+	cristiano = { 7, "Cresta", BROWN },
+}
+for _, f in Config.Footballers do
+	local look = looks[f.Id]
+	f.Number = f.Number or (if look then look[1] else 10)
+	f.Hair = f.Hair or (if look then look[2] else "Corto")
+	f.HairColor = f.HairColor or (if look then look[3] else BROWN)
+end
 
 -- Lista ordenada del más raro al más común (para el sorteo)
 local rarestFirst = table.clone(Config.Footballers)
@@ -345,7 +377,7 @@ function Config.GetPartColor(partName: string, f: Footballer): Color3
 		return Config.SKIN_COLOR
 	elseif partName:find("Foot") then
 		return Config.BOOTS_COLOR
-	elseif partName:find("UpperLeg") then
+	elseif partName:find("UpperLeg") or partName == "LowerTorso" then
 		return f.Shorts
 	end
 	return f.Shirt -- torso, brazos y medias
@@ -403,17 +435,192 @@ return Config
 ]]></string>
         </Properties>
       </Item>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
+          <string name="Name">FootballerLook</string>
+          <string name="Source"><![CDATA[-- Viste a un futbolista: colores del uniforme, pelo, número y nombre en la camiseta,
+-- tenis según la rareza y un aura para los más raros.
+-- Lo usan el servidor (corrales) y el cliente (revelación).
+local Config = require(script.Parent.Config)
+
+local FootballerLook = {}
+
+local ACCENTS = { ["á"] = "Á", ["é"] = "É", ["í"] = "Í", ["ó"] = "Ó", ["ú"] = "Ú", ["ñ"] = "Ñ", ["ü"] = "Ü" }
+function FootballerLook.Upper(text: string): string
+	local upper = string.upper(text)
+	for lower, capital in ACCENTS do
+		upper = upper:gsub(lower, capital)
+	end
+	return upper
+end
+
+local RAINBOW = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 70, 70)),
+	ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 220, 60)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(80, 220, 90)),
+	ColorSequenceKeypoint.new(0.75, Color3.fromRGB(70, 160, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 90, 255)),
+})
+
+-- Pieza pegada (con soldadura) a una parte del cuerpo
+local function attach(model: Model, to: BasePart, size: Vector3, offset: CFrame, color: Color3, material: Enum.Material?): Part
+	local part = Instance.new("Part")
+	part.Name = "Detalle"
+	part.Size = size
+	part.Color = color
+	part.Material = material or Enum.Material.SmoothPlastic
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.Massless = true
+	part.Anchored = false
+	part.CFrame = to.CFrame * offset
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = to
+	weld.Part1 = part
+	weld.Parent = part
+	part.Parent = model
+	return part
+end
+
+local function addHair(model: Model, head: BasePart, style: string, color: Color3)
+	local s = head.Size
+	if style == "Rapado" then
+		attach(model, head, Vector3.new(s.X * 1.02, 0.12, s.Z * 1.02), CFrame.new(0, s.Y * 0.48, 0), color)
+		return
+	end
+	if style == "Cresta" then
+		attach(model, head, Vector3.new(s.X * 1.02, 0.12, s.Z * 1.02), CFrame.new(0, s.Y * 0.48, 0), color)
+		attach(model, head, Vector3.new(s.X * 0.28, s.Y * 0.4, s.Z * 0.95), CFrame.new(0, s.Y * 0.62, 0.05), color)
+		return
+	end
+	-- Corto y Largo: casquete arriba + parte de atrás
+	attach(model, head, Vector3.new(s.X * 1.1, s.Y * 0.3, s.Z * 1.1), CFrame.new(0, s.Y * 0.43, 0.04), color)
+	if style == "Largo" then
+		attach(model, head, Vector3.new(s.X * 1.1, s.Y * 0.95, s.Z * 0.28), CFrame.new(0, -0.05, s.Z * 0.5), color)
+		for _, x in { -1, 1 } do
+			attach(model, head, Vector3.new(s.X * 0.16, s.Y * 0.7, s.Z * 0.8), CFrame.new(x * s.X * 0.52, 0.05, s.Z * 0.1), color)
+		end
+	else
+		attach(model, head, Vector3.new(s.X * 1.06, s.Y * 0.5, s.Z * 0.2), CFrame.new(0, s.Y * 0.15, s.Z * 0.48), color)
+	end
+end
+
+local function addShirtText(torso: BasePart, f: Config.Footballer)
+	local shirt = f.Shirt
+	local brightness = shirt.R * 0.299 + shirt.G * 0.587 + shirt.B * 0.114
+	local textColor = if brightness > 0.6 then Color3.fromRGB(25, 25, 35) else Color3.new(1, 1, 1)
+
+	local function surface(face: Enum.NormalId): SurfaceGui
+		local gui = Instance.new("SurfaceGui")
+		gui.Name = "Camiseta" .. face.Name
+		gui.Face = face
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 60
+		gui.LightInfluence = 1
+		gui.Parent = torso
+		return gui
+	end
+	local function label(parent: Instance, text: string, size: UDim2, position: UDim2)
+		local l = Instance.new("TextLabel")
+		l.BackgroundTransparency = 1
+		l.Size = size
+		l.Position = position
+		l.Font = Enum.Font.FredokaOne
+		l.TextScaled = true
+		l.TextColor3 = textColor
+		l.Text = text
+		l.Parent = parent
+	end
+
+	-- Atrás: nombre y número grande
+	local back = surface(Enum.NormalId.Back)
+	local words = string.split(f.Name, " ")
+	label(back, FootballerLook.Upper(words[#words]), UDim2.fromScale(0.9, 0.22), UDim2.fromScale(0.05, 0.08))
+	label(back, tostring(f.Number), UDim2.fromScale(0.8, 0.62), UDim2.fromScale(0.1, 0.3))
+	-- Adelante: número chico
+	local front = surface(Enum.NormalId.Front)
+	label(front, tostring(f.Number), UDim2.fromScale(0.3, 0.3), UDim2.fromScale(0.35, 0.2))
+end
+
+function FootballerLook.Dress(model: Model, f: Config.Footballer)
+	local rarity = Config.Rarities[f.Rarity]
+	local bootColor = if rarity.Order >= Config.Rarities.Legendario.Order
+		then Color3.fromRGB(255, 200, 50)
+		elseif rarity.Order >= Config.Rarities.Raro.Order then rarity.Color
+		else Config.BOOTS_COLOR
+
+	for _, obj in model:GetDescendants() do
+		if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
+			obj.Color = if obj.Name:find("Foot") then bootColor else Config.GetPartColor(obj.Name, f)
+		end
+	end
+
+	local head = model:FindFirstChild("Head") :: BasePart?
+	local torso = model:FindFirstChild("UpperTorso") :: BasePart?
+	if head then
+		addHair(model, head, f.Hair or "Corto", f.HairColor or Color3.fromRGB(70, 45, 30))
+	end
+	if torso then
+		addShirtText(torso, f)
+	end
+
+	-- Espinilleras blancas
+	for _, name in { "LeftLowerLeg", "RightLowerLeg" } do
+		local leg = model:FindFirstChild(name) :: BasePart?
+		if leg then
+			attach(model, leg, Vector3.new(leg.Size.X * 0.7, leg.Size.Y * 0.45, 0.12), CFrame.new(0, 0.05, -leg.Size.Z / 2 - 0.02), Color3.new(1, 1, 1))
+		end
+	end
+
+	-- Aura según la rareza
+	local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+	if root and rarity.Order >= Config.Rarities.Epico.Order then
+		local sparkles = Instance.new("ParticleEmitter")
+		sparkles.Name = "Aura"
+		sparkles.Color = if rarity.Order >= Config.Rarities.Secreto.Order then RAINBOW else ColorSequence.new(rarity.Color)
+		sparkles.LightEmission = 1
+		sparkles.Size = NumberSequence.new(0.5, 0)
+		sparkles.Lifetime = NumberRange.new(0.8, 1.4)
+		sparkles.Rate = if rarity.Order >= Config.Rarities.Mitico.Order then 18 else 8
+		sparkles.Speed = NumberRange.new(1, 3)
+		sparkles.SpreadAngle = Vector2.new(180, 180)
+		sparkles.Parent = root
+	end
+	if root and rarity.Order >= Config.Rarities.Legendario.Order then
+		local light = Instance.new("PointLight")
+		light.Color = rarity.Color
+		light.Range = 9
+		light.Brightness = 1.3
+		light.Parent = root
+	end
+	-- Corona para los Secretos
+	if head and rarity.Order >= Config.Rarities.Secreto.Order then
+		local s = head.Size
+		attach(model, head, Vector3.new(s.X * 1.15, 0.25, s.Z * 1.15), CFrame.new(0, s.Y * 0.72, 0), Color3.fromRGB(255, 200, 50), Enum.Material.Foil)
+		for _, corner in { Vector3.new(-1, 0, -1), Vector3.new(1, 0, -1), Vector3.new(-1, 0, 1), Vector3.new(1, 0, 1) } do
+			attach(model, head, Vector3.new(0.22, 0.4, 0.22), CFrame.new(corner.X * s.X * 0.5, s.Y * 0.9, corner.Z * s.Z * 0.5), Color3.fromRGB(255, 200, 50), Enum.Material.Foil)
+		end
+	end
+end
+
+return FootballerLook
+]]></string>
+        </Properties>
+      </Item>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="4">
+  <Item class="ServerScriptService" referent="5">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="5">
+    <Item class="Folder" referent="6">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="ModuleScript" referent="6">
+      <Item class="ModuleScript" referent="7">
         <Properties>
           <string name="Name">DataManager</string>
           <string name="Source"><![CDATA[-- Guarda y carga los datos de cada jugador (monedas, fuerza, balón, colección).
@@ -599,7 +806,7 @@ return DataManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="7">
+      <Item class="Script" referent="8">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -1375,7 +1582,7 @@ end
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="8">
+      <Item class="ModuleScript" referent="9">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[-- Construye el mapa: lobby, punto de patada y un cañón de 30 zonas dividido en biomas.
@@ -2394,7 +2601,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">PlotManager</string>
           <string name="Source"><![CDATA[-- Corrales: cada jugador recibe uno. Ahí caminan sus futbolistas, se junta el dinero
@@ -2403,6 +2610,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local FootballerLook = require(ReplicatedStorage.Shared.FootballerLook)
 
 local PlotManager = {}
 
@@ -2470,17 +2678,13 @@ local function createFootballer(f: Config.Footballer, pen: Model): Model
 	local model = template:Clone()
 	model.Name = f.Name
 	model:SetAttribute("Id", f.Id)
-	for _, obj in model:GetDescendants() do
-		if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
-			obj.Color = Config.GetPartColor(obj.Name, f)
-		end
-	end
+	FootballerLook.Dress(model, f)
 
 	local rarity = Config.Rarities[f.Rarity]
 	local head = model:FindFirstChild("Head") or model.PrimaryPart
 	local billboard = Instance.new("BillboardGui")
 	billboard.Size = UDim2.fromScale(8, 2.4)
-	billboard.StudsOffset = Vector3.new(0, 2.6, 0)
+	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
 	billboard.LightInfluence = 0
 	billboard.MaxDistance = 90
 	billboard.Parent = head
@@ -2628,7 +2832,7 @@ return PlotManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[-- Escenarios a los lados del campo. Cada zona tiene el suyo (ver Config.Zones)
@@ -3576,20 +3780,221 @@ return Scenery
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="11">
+  <Item class="StarterPlayer" referent="12">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <token name="GameSettingsAvatar">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="12">
+    <Item class="StarterPlayerScripts" referent="13">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="13">
+      <Item class="Folder" referent="14">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="14">
+        <Item class="ModuleScript" referent="15">
+          <Properties>
+            <string name="Name">FootballerMoves</string>
+            <string name="Source"><![CDATA[-- Movimientos de los futbolistas: correr, caminar, dominadas con el balón,
+-- festejos, bailes y estiramientos. Usa las animaciones R15 que trae Roblox
+-- y, para las dominadas y estiramientos, mueve las articulaciones con código.
+local RunService = game:GetService("RunService")
+
+local Moves = {}
+
+-- Animaciones R15 por defecto de Roblox (sirven en cualquier juego)
+Moves.ANIMS = {
+	Walk = "rbxassetid://507777826",
+	Run = "rbxassetid://913376220",
+	Wave = "rbxassetid://507770239",
+	Cheer = "rbxassetid://507770677",
+	Dance = "rbxassetid://507771019",
+	Dance2 = "rbxassetid://507776043",
+	Dance3 = "rbxassetid://507777268",
+	Point = "rbxassetid://507770453",
+	Laugh = "rbxassetid://507770818",
+}
+
+local tracks: { [Model]: { [string]: AnimationTrack } } = setmetatable({}, { __mode = "k" }) :: any
+local originals: { [Motor6D]: CFrame } = setmetatable({}, { __mode = "k" }) :: any
+
+function Moves.Play(model: Model, name: string, looped: boolean, speed: number?): AnimationTrack?
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	local id = Moves.ANIMS[name]
+	if not humanoid or not id then
+		return nil
+	end
+	local cache = tracks[model]
+	if not cache then
+		cache = {}
+		tracks[model] = cache
+	end
+	local track = cache[name]
+	if not track then
+		local ok, loaded = pcall(function()
+			local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
+			local animation = Instance.new("Animation")
+			animation.AnimationId = id
+			return animator:LoadAnimation(animation)
+		end)
+		if not ok or not loaded then
+			return nil
+		end
+		track = loaded
+		cache[name] = loaded
+	end
+	track.Looped = looped
+	track:Play(0.15, 1, speed or 1)
+	return track
+end
+
+function Moves.Stop(model: Model, name: string, fade: number?)
+	local cache = tracks[model]
+	local track = cache and cache[name]
+	if track and track.IsPlaying then
+		track:Stop(fade or 0.2)
+	end
+end
+
+function Moves.StopAll(model: Model, fade: number?)
+	local cache = tracks[model]
+	if cache then
+		for _, track in cache do
+			if track.IsPlaying then
+				track:Stop(fade or 0.2)
+			end
+		end
+	end
+end
+
+-- ------------------------------------------------------------
+-- Articulaciones
+-- ------------------------------------------------------------
+local function getJoint(model: Model, partName: string, jointName: string): Motor6D?
+	local part = model:FindFirstChild(partName)
+	local joint = part and part:FindFirstChild(jointName)
+	if joint and joint:IsA("Motor6D") then
+		if not originals[joint] then
+			originals[joint] = joint.C0
+		end
+		return joint
+	end
+	return nil
+end
+
+local function setJoint(joint: Motor6D?, rotation: CFrame)
+	if joint and originals[joint] then
+		joint.C0 = originals[joint] * rotation
+	end
+end
+
+local function resetJoint(joint: Motor6D?)
+	if joint and originals[joint] then
+		joint.C0 = originals[joint]
+	end
+end
+
+local function makeBall(color: Color3?): Part
+	local ball = Instance.new("Part")
+	ball.Name = "BalonDominadas"
+	ball.Shape = Enum.PartType.Ball
+	ball.Size = Vector3.new(1.4, 1.4, 1.4)
+	ball.Color = color or Color3.new(1, 1, 1)
+	ball.Anchored = true
+	ball.CanCollide = false
+	ball.CanQuery = false
+	ball.CanTouch = false
+	ball.Parent = workspace
+	return ball
+end
+
+-- Dominadas: el balón sube y baja y el futbolista lo golpea con un pie y luego con el otro
+function Moves.Juggle(model: Model, duration: number, ballColor: Color3?)
+	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return
+	end
+	local rightHip = getJoint(model, "RightUpperLeg", "RightHip")
+	local leftHip = getJoint(model, "LeftUpperLeg", "LeftHip")
+	local rightKnee = getJoint(model, "RightLowerLeg", "RightKnee")
+	local leftKnee = getJoint(model, "LeftLowerLeg", "LeftKnee")
+	local rightShoulder = getJoint(model, "RightUpperArm", "RightShoulder")
+	local leftShoulder = getJoint(model, "LeftUpperArm", "LeftShoulder")
+	local ball = makeBall(ballColor)
+	local period = 0.55
+	local started = os.clock()
+
+	while model.Parent and os.clock() - started < duration do
+		local t = os.clock() - started
+		local bounce = math.floor(t / period)
+		local u = (t % period) / period
+		local right = bounce % 2 == 0
+		local kick = math.max(0, 1 - u * 5) -- la pierna sube al principio de cada rebote
+		local y = -2.1 + 3.4 * 4 * u * (1 - u)
+		ball.CFrame = root.CFrame * CFrame.new(if right then 0.45 else -0.45, y, -1.4) * CFrame.Angles(t * 8, 0, 0)
+		setJoint(if right then rightHip else leftHip, CFrame.Angles(math.rad(50 * kick), 0, 0))
+		setJoint(if right then rightKnee else leftKnee, CFrame.Angles(math.rad(-25 * kick), 0, 0))
+		resetJoint(if right then leftHip else rightHip)
+		resetJoint(if right then leftKnee else rightKnee)
+		-- brazos abiertos para el equilibrio
+		setJoint(rightShoulder, CFrame.Angles(0, 0, math.rad(25)))
+		setJoint(leftShoulder, CFrame.Angles(0, 0, math.rad(-25)))
+		RunService.RenderStepped:Wait()
+	end
+
+	for _, joint in { rightHip, leftHip, rightKnee, leftKnee, rightShoulder, leftShoulder } do
+		resetJoint(joint)
+	end
+	ball:Destroy()
+end
+
+-- Estiramiento: brazos arriba y se inclina de lado a lado
+function Moves.Stretch(model: Model, duration: number)
+	local waist = getJoint(model, "UpperTorso", "Waist")
+	local rightShoulder = getJoint(model, "RightUpperArm", "RightShoulder")
+	local leftShoulder = getJoint(model, "LeftUpperArm", "LeftShoulder")
+	local started = os.clock()
+	while model.Parent and os.clock() - started < duration do
+		local t = os.clock() - started
+		local lean = math.sin(t * 2.2) * math.rad(22)
+		setJoint(waist, CFrame.Angles(0, 0, lean))
+		setJoint(rightShoulder, CFrame.Angles(math.rad(170), 0, 0))
+		setJoint(leftShoulder, CFrame.Angles(math.rad(170), 0, 0))
+		RunService.RenderStepped:Wait()
+	end
+	resetJoint(waist)
+	resetJoint(rightShoulder)
+	resetJoint(leftShoulder)
+end
+
+-- Saltito de festejo con los brazos arriba
+function Moves.Jump(model: Model, jumps: number)
+	local rightShoulder = getJoint(model, "RightUpperArm", "RightShoulder")
+	local leftShoulder = getJoint(model, "LeftUpperArm", "LeftShoulder")
+	local base = model:GetPivot()
+	local started = os.clock()
+	local duration = jumps * 0.5
+	while model.Parent and os.clock() - started < duration do
+		local t = os.clock() - started
+		local u = (t % 0.5) / 0.5
+		model:PivotTo(base * CFrame.new(0, 2.2 * 4 * u * (1 - u), 0))
+		setJoint(rightShoulder, CFrame.Angles(math.rad(160), 0, math.rad(15)))
+		setJoint(leftShoulder, CFrame.Angles(math.rad(160), 0, math.rad(-15)))
+		RunService.RenderStepped:Wait()
+	end
+	if model.Parent then
+		model:PivotTo(base)
+	end
+	resetJoint(rightShoulder)
+	resetJoint(leftShoulder)
+end
+
+return Moves
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="16">
           <Properties>
             <string name="Name">KickAnimation</string>
             <string name="Source"><![CDATA[-- Animaciones de la patada hechas con código (sin subir animaciones a Roblox):
@@ -3829,7 +4234,7 @@ return KickAnimation
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="15">
+        <Item class="LocalScript" referent="17">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[-- Interfaz del jugador: barra de poder, patada, cámara, revelación del futbolista,
@@ -3844,6 +4249,8 @@ local Debris = game:GetService("Debris")
 
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local KickAnimation = require(script.Parent:WaitForChild("KickAnimation"))
+local Moves = require(script.Parent:WaitForChild("FootballerMoves"))
+local FootballerLook = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("FootballerLook"))
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 local Assets = ReplicatedStorage:WaitForChild("Assets")
 local KickEvent = Remotes:WaitForChild("Kick") :: RemoteEvent
@@ -4796,25 +5203,37 @@ local revealContinue = textLabel({
 	Parent = revealBox,
 })
 
-local ANIM_WALK = "rbxassetid://507777826" -- animaciones R15 por defecto de Roblox
-local ANIM_CHEER = "rbxassetid://507770677"
+-- Festejo según la rareza
+local CELEBRATIONS = {
+	Comun = "Wave",
+	PocoComun = "Wave",
+	Raro = "Cheer",
+	Epico = "Dance2",
+	Legendario = "Dance",
+	Mitico = "Dance3",
+	Secreto = "Dance3",
+}
 
-local function playAnimation(model: Model, id: string, looped: boolean): AnimationTrack?
-	local humanoid = model:FindFirstChildOfClass("Humanoid")
-	if not humanoid then
-		return nil
+-- Escondemos (solo en tu pantalla) el balón del servidor para usar el de las dominadas
+local function hideServerBall(landing: Vector3)
+	local folder = workspace:FindFirstChild("Balones")
+	if not folder then
+		return
 	end
-	local ok, track = pcall(function()
-		local animator = humanoid:FindFirstChildOfClass("Animator") or Instance.new("Animator", humanoid)
-		local animation = Instance.new("Animation")
-		animation.AnimationId = id
-		local t = animator:LoadAnimation(animation)
-		t.Looped = looped
-		t:Play()
-		return t
-	end)
-	return if ok then track else nil
+	for _, ball in folder:GetChildren() do
+		if ball:IsA("BasePart") and (ball.Position - landing).Magnitude < 8 then
+			ball.Transparency = 1
+			for _, fx in ball:GetDescendants() do
+				if fx:IsA("Trail") or fx:IsA("ParticleEmitter") then
+					fx.Enabled = false
+				end
+			end
+		end
+	end
 end
+
+local revealFocus: Vector3? = nil -- a dónde mira la cámara de revelación
+local revealStarted = 0
 
 local function spawnFootballer(f: Config.Footballer, landing: Vector3): Model?
 	local template = Assets:FindFirstChild("FootballerRig")
@@ -4823,22 +5242,7 @@ local function spawnFootballer(f: Config.Footballer, landing: Vector3): Model?
 	end
 	local model = template:Clone() :: Model
 	model.Name = f.Name
-	for _, obj in model:GetDescendants() do
-		if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
-			obj.Color = Config.GetPartColor(obj.Name, f)
-		end
-	end
-
-	-- Brillo del color de la rareza para los buenos
-	local rarity = Config.Rarities[f.Rarity]
-	if rarity.Order >= Config.Rarities.Raro.Order then
-		create("Highlight", {
-			FillColor = rarity.Color,
-			FillTransparency = 0.75,
-			OutlineColor = rarity.Color,
-			Parent = model,
-		})
-	end
+	FootballerLook.Dress(model, f)
 	model.Parent = workspace
 
 	-- Ajustamos la altura para que los pies toquen el piso (y = 0)
@@ -4846,33 +5250,48 @@ local function spawnFootballer(f: Config.Footballer, landing: Vector3): Model?
 	local box, size = model:GetBoundingBox()
 	local lift = -(box.Position.Y - size.Y / 2)
 
-	-- Camina desde un costado hasta el balón
 	local ground = Vector3.new(landing.X, lift, landing.Z)
-	local from = ground + Vector3.new(12, 0, 10)
-	local to = ground + Vector3.new(2.8, 0, 1.5)
-	model:PivotTo(CFrame.lookAt(from, Vector3.new(landing.X, lift, landing.Z)))
+	local from = ground + Vector3.new(18, 0, 14)
+	local to = ground + Vector3.new(0.4, 0, 1.6)
+	model:PivotTo(CFrame.lookAt(from, ground))
+	local ballInfo = Config.Balls[if data then data.BallTier else 1] or Config.Balls[1]
+	local celebration = CELEBRATIONS[f.Rarity] or "Cheer"
+	local rarity = Config.Rarities[f.Rarity]
 
 	task.spawn(function()
-		local walk = playAnimation(model, ANIM_WALK, true)
-		local duration = 1.6
+		-- 1) Llega corriendo hasta el balón
+		Moves.Play(model, "Run", true, 1.15)
+		local duration = 1.1
 		local started = os.clock()
 		while model.Parent do
 			local alpha = math.min((os.clock() - started) / duration, 1)
 			local pos = from:Lerp(to, alpha)
-			model:PivotTo(CFrame.lookAt(pos, Vector3.new(landing.X, lift, landing.Z)))
+			model:PivotTo(CFrame.lookAt(pos, pos + (to - from).Unit))
 			if alpha >= 1 then
 				break
 			end
 			RunService.Heartbeat:Wait()
 		end
-		if walk then
-			walk:Stop(0.2)
+		Moves.Stop(model, "Run", 0.15)
+		if not model.Parent then
+			return
+		end
+
+		-- 2) Mira a la cámara y hace dominadas con el balón
+		local camPos = camera.CFrame.Position
+		model:PivotTo(CFrame.lookAt(to, Vector3.new(camPos.X, lift, camPos.Z)))
+		hideServerBall(landing)
+		Moves.Juggle(model, 1.9, ballInfo.Color)
+		if not model.Parent then
+			return
+		end
+
+		-- 3) Festeja según su rareza
+		if rarity.Order >= Config.Rarities.Legendario.Order then
+			Moves.Jump(model, 2)
 		end
 		if model.Parent then
-			-- Voltea hacia la cámara y festeja
-			local camPos = camera.CFrame.Position
-			model:PivotTo(CFrame.lookAt(to, Vector3.new(camPos.X, lift, camPos.Z)))
-			playAnimation(model, ANIM_CHEER, false)
+			Moves.Play(model, celebration, true)
 		end
 	end)
 	return model
@@ -4946,16 +5365,6 @@ local function landingEffects(landing: Vector3, rarity: Config.Rarity)
 		}):Play()
 		Debris:AddItem(beam, 3.2)
 	end
-end
-
--- Mayúsculas que también entienden los acentos (string.upper solo cambia a-z)
-local ACCENTS = { ["á"] = "Á", ["é"] = "É", ["í"] = "Í", ["ó"] = "Ó", ["ú"] = "Ú", ["ñ"] = "Ñ", ["ü"] = "Ü" }
-local function upperSpanish(text: string): string
-	local upper = string.upper(text)
-	for lower, capital in ACCENTS do
-		upper = upper:gsub(lower, capital)
-	end
-	return upper
 end
 
 -- Escribe el nombre letra por letra (usando utf8 para no romper los acentos)
@@ -5134,6 +5543,7 @@ local function finishKick(myKick: number)
 	waitingForContinue = false
 	awaitingKickStart = false
 	flyingBall = nil
+	revealFocus = nil
 	flightHud.Visible = false
 	revealGui.Visible = false
 	if revealModel then
@@ -5342,10 +5752,8 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 	flyingBall = nil
 	cameraMode = "reveal"
 	camera.CameraType = Enum.CameraType.Scriptable
-	local camFrom = CFrame.lookAt(landing + Vector3.new(-9, 7, -16), landing + Vector3.new(2, 2.5, 0))
-	local camTo = CFrame.lookAt(landing + Vector3.new(-5, 4.5, -11), landing + Vector3.new(2, 2.5, 0))
-	camera.CFrame = camFrom
-	TweenService:Create(camera, TweenInfo.new(2.2, Enum.EasingStyle.Sine), { CFrame = camTo }):Play()
+	revealFocus = landing + Vector3.new(0.4, 0, 1.6)
+	revealStarted = os.clock()
 
 	flightHud.Visible = false
 	landingEffects(landing, rarity)
@@ -5386,7 +5794,7 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 
 	task.spawn(function()
 		task.wait(1.1)
-		typeName(revealName, upperSpanish(f.Name), myKick, function()
+		typeName(revealName, FootballerLook.Upper(f.Name), myKick, function()
 			return kickId
 		end)
 		if kickId ~= myKick then
@@ -5600,13 +6008,14 @@ end)
 -- Futbolistas caminando dentro de los corrales
 -- (cada jugador los mueve en su propia pantalla, así se ven fluidos)
 -- ============================================================
-type Wanderer = { Pen: Model, Target: Vector3?, WaitUntil: number, Walk: AnimationTrack? }
+type Wanderer = { Pen: Model, Target: Vector3?, WaitUntil: number, Busy: boolean }
 local wanderers: { [Model]: Wanderer } = {}
 local WALK_SPEED = 6
+local DANCES = { "Dance", "Dance2", "Dance3" }
 
 local function addWanderer(model: Instance, pen: Model)
 	if model:IsA("Model") and not wanderers[model] then
-		wanderers[model] = { Pen = pen, Target = nil, WaitUntil = os.clock() + math.random() * 3, Walk = nil }
+		wanderers[model] = { Pen = pen, Target = nil, WaitUntil = os.clock() + math.random() * 3, Busy = false }
 	end
 end
 
@@ -5629,6 +6038,53 @@ task.spawn(function()
 	end
 end)
 
+-- Voltea hacia ti si estás cerca (para saludarte)
+local function faceLocalPlayer(model: Model)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then
+		return
+	end
+	local pivot = model:GetPivot()
+	local target = Vector3.new(root.Position.X, pivot.Position.Y, root.Position.Z)
+	if (target - pivot.Position).Magnitude < 60 and (target - pivot.Position).Magnitude > 0.1 then
+		model:PivotTo(CFrame.lookAt(pivot.Position, target))
+	end
+end
+
+-- Algo divertido que hacer en vez de caminar
+local function doAction(model: Model, w: Wanderer)
+	w.Busy = true
+	task.spawn(function()
+		local roll = math.random()
+		if roll < 0.3 then
+			local f = Config.GetFootballer(model:GetAttribute("Id") or "")
+			local ballTier = math.random(1, #Config.Balls)
+			Moves.Juggle(model, 3 + math.random() * 2, Config.Balls[ballTier].Color)
+			if f and model.Parent and Config.Rarities[f.Rarity].Order >= Config.Rarities.Epico.Order then
+				Moves.Jump(model, 1)
+			end
+		elseif roll < 0.5 then
+			faceLocalPlayer(model)
+			Moves.Play(model, "Wave", false)
+			task.wait(2.5)
+		elseif roll < 0.7 then
+			local dance = DANCES[math.random(1, #DANCES)]
+			Moves.Play(model, dance, true)
+			task.wait(4 + math.random() * 3)
+			Moves.Stop(model, dance)
+		elseif roll < 0.85 then
+			faceLocalPlayer(model)
+			Moves.Play(model, "Cheer", false)
+			task.wait(2.5)
+		else
+			Moves.Stretch(model, 3)
+		end
+		w.Busy = false
+		w.WaitUntil = os.clock() + 1 + math.random() * 3
+	end)
+end
+
 RunService.Heartbeat:Connect(function(dt)
 	local now = os.clock()
 	local camPos = camera.CFrame.Position
@@ -5637,14 +6093,20 @@ RunService.Heartbeat:Connect(function(dt)
 			wanderers[model] = nil
 			continue
 		end
-		if now < w.WaitUntil then
+		if w.Busy or now < w.WaitUntil then
 			continue
 		end
 		local pivot = model:GetPivot()
-		if (pivot.Position - camPos).Magnitude > 250 then
+		local distance = (pivot.Position - camPos).Magnitude
+		if distance > 250 then
 			continue -- muy lejos, no hace falta moverlo
 		end
 		if not w.Target then
+			-- 45% de las veces hace algo divertido (si estás cerca para verlo)
+			if distance < 140 and math.random() < 0.45 then
+				doAction(model, w)
+				continue
+			end
 			local center = w.Pen:GetAttribute("Center") :: Vector3
 			local size = w.Pen:GetAttribute("Size") :: Vector3
 			w.Target = Vector3.new(
@@ -5652,10 +6114,7 @@ RunService.Heartbeat:Connect(function(dt)
 				pivot.Position.Y,
 				center.Z + (math.random() - 0.5) * (size.Z - 8)
 			)
-			w.Walk = w.Walk or playAnimation(model, ANIM_WALK, true)
-			if w.Walk and not w.Walk.IsPlaying then
-				w.Walk:Play()
-			end
+			Moves.Play(model, "Walk", true)
 		end
 		local target = w.Target :: Vector3
 		local offset = target - pivot.Position
@@ -5663,10 +6122,8 @@ RunService.Heartbeat:Connect(function(dt)
 		if offset.Magnitude <= step then
 			model:PivotTo(CFrame.lookAt(target, target + pivot.LookVector))
 			w.Target = nil
-			w.WaitUntil = now + 1 + math.random() * 4
-			if w.Walk then
-				w.Walk:Stop(0.2)
-			end
+			w.WaitUntil = now + 1 + math.random() * 3
+			Moves.Stop(model, "Walk")
 		else
 			local pos = pivot.Position + offset.Unit * step
 			model:PivotTo(CFrame.lookAt(pos, pos + offset.Unit))
@@ -5727,6 +6184,18 @@ RunService.RenderStepped:Connect(function(dt)
 			biomeLabel.TextColor3 = if inSpace then Color3.fromRGB(210, 170, 255) else zoneInfo.Field:Lerp(Color3.new(1, 1, 1), 0.45)
 			popIn(biomeLabel)
 		end
+	elseif cameraMode == "reveal" and revealFocus then
+		-- Se acerca y gira despacio alrededor del futbolista
+		local t = os.clock() - revealStarted
+		local zoom = math.clamp(t / 2.2, 0, 1)
+		zoom = zoom * zoom * (3 - 2 * zoom)
+		local radius = 20 - 9 * zoom
+		local height = 8 - 3.5 * zoom
+		local angle = -0.9 + t * 0.22
+		local focus = revealFocus :: Vector3
+		local camPos = focus + Vector3.new(math.sin(angle) * radius, height, -math.cos(angle) * radius)
+		camera.CFrame = CFrame.lookAt(camPos, focus + Vector3.new(0, 2.6, 0))
+		lastBiome = ""
 	elseif cameraMode ~= "chase" then
 		lastBiome = ""
 	end
@@ -5744,7 +6213,7 @@ end)
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="16">
+  <Item class="Workspace" referent="18">
     <Properties>
       <string name="Name">Workspace</string>
       <bool name="NeedsPivotMigration">false</bool>

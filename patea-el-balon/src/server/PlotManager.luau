@@ -4,6 +4,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
+local FootballerLook = require(ReplicatedStorage.Shared.FootballerLook)
 
 local PlotManager = {}
 
@@ -71,17 +72,13 @@ local function createFootballer(f: Config.Footballer, pen: Model): Model
 	local model = template:Clone()
 	model.Name = f.Name
 	model:SetAttribute("Id", f.Id)
-	for _, obj in model:GetDescendants() do
-		if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
-			obj.Color = Config.GetPartColor(obj.Name, f)
-		end
-	end
+	FootballerLook.Dress(model, f)
 
 	local rarity = Config.Rarities[f.Rarity]
 	local head = model:FindFirstChild("Head") or model.PrimaryPart
 	local billboard = Instance.new("BillboardGui")
 	billboard.Size = UDim2.fromScale(8, 2.4)
-	billboard.StudsOffset = Vector3.new(0, 2.6, 0)
+	billboard.StudsOffset = Vector3.new(0, 3.2, 0)
 	billboard.LightInfluence = 0
 	billboard.MaxDistance = 90
 	billboard.Parent = head

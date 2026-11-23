@@ -260,6 +260,9 @@ export type Footballer = {
 	Chance: number,
 	Rarity: string,
 	Income: number, -- monedas por segundo
+	Number: number?, -- número de la camiseta
+	Hair: string?, -- "Corto", "Largo", "Cresta" o "Rapado"
+	HairColor: Color3?,
 	Shirt: Color3,
 	Shorts: Color3,
 }
@@ -285,6 +288,35 @@ Config.Footballers = {
 	{ Id = "messi", Name = "Messi", Chance = 250000, Rarity = "Secreto", Income = 6000, Shirt = Color3.fromRGB(245, 140, 170), Shorts = Color3.fromRGB(20, 20, 20) },
 	{ Id = "cristiano", Name = "Cristiano Ronaldo", Chance = 1000000, Rarity = "Secreto", Income = 15000, Shirt = Color3.fromRGB(20, 120, 60), Shorts = Color3.fromRGB(250, 250, 250) },
 } :: { Footballer }
+
+-- Número de camiseta y peinado de cada futbolista
+local BROWN, BLACK, BLONDE, LIGHT_BROWN = rgb(70, 45, 30), rgb(30, 25, 25), rgb(235, 205, 115), rgb(130, 85, 50)
+local looks = {
+	canterano = { 22, "Corto", LIGHT_BROWN },
+	gavi = { 6, "Corto", BLACK },
+	kounde = { 23, "Rapado", BLACK },
+	valverde = { 8, "Corto", BROWN },
+	rodri = { 16, "Corto", BROWN },
+	pedri = { 8, "Corto", BLACK },
+	rodrygo = { 11, "Corto", BLACK },
+	saka = { 7, "Rapado", BLACK },
+	musiala = { 10, "Corto", BROWN },
+	wirtz = { 10, "Corto", LIGHT_BROWN },
+	yamal = { 19, "Cresta", BLACK },
+	bellingham = { 5, "Rapado", BLACK },
+	vinicius = { 7, "Largo", BLACK },
+	salah = { 11, "Largo", BLACK },
+	mbappe = { 10, "Rapado", BLACK },
+	haaland = { 9, "Largo", BLONDE },
+	messi = { 10, "Corto", BROWN },
+	cristiano = { 7, "Cresta", BROWN },
+}
+for _, f in Config.Footballers do
+	local look = looks[f.Id]
+	f.Number = f.Number or (if look then look[1] else 10)
+	f.Hair = f.Hair or (if look then look[2] else "Corto")
+	f.HairColor = f.HairColor or (if look then look[3] else BROWN)
+end
 
 -- Lista ordenada del más raro al más común (para el sorteo)
 local rarestFirst = table.clone(Config.Footballers)
@@ -325,7 +357,7 @@ function Config.GetPartColor(partName: string, f: Footballer): Color3
 		return Config.SKIN_COLOR
 	elseif partName:find("Foot") then
 		return Config.BOOTS_COLOR
-	elseif partName:find("UpperLeg") then
+	elseif partName:find("UpperLeg") or partName == "LowerTorso" then
 		return f.Shorts
 	end
 	return f.Shirt -- torso, brazos y medias
