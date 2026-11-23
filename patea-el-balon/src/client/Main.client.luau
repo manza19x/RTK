@@ -19,6 +19,9 @@ local DataUpdatedEvent = Remotes:WaitForChild("DataUpdated") :: RemoteEvent
 local GetDataFunction = Remotes:WaitForChild("GetData") :: RemoteFunction
 local PurchaseFunction = Remotes:WaitForChild("Purchase") :: RemoteFunction
 local NotifyEvent = Remotes:WaitForChild("Notify") :: RemoteEvent
+local StartTrainingFunction = Remotes:WaitForChild("StartTraining") :: RemoteFunction
+local TrainEvent = Remotes:WaitForChild("Train") :: RemoteEvent
+local StopTrainingEvent = Remotes:WaitForChild("StopTraining") :: RemoteEvent
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -26,6 +29,8 @@ local camera = workspace.CurrentCamera
 local data: any = nil
 local coins = 0 -- se actualiza cada segundo desde leaderstats
 local kicking = false -- true desde que pateas hasta que cierras la revelación
+local inKickZone = false -- true cuando cruzaste la línea de patada
+local trainingIndex: number? = nil -- estación del gimnasio donde estás entrenando
 local cameraMode = "normal" -- "normal", "chase" (sigue al balón) o "reveal"
 local flyingBall: BasePart? = nil
 local needleValue = 0
@@ -215,10 +220,21 @@ local kickButton = button({
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, 0),
 	Size = UDim2.new(1, 0, 0, 70),
-	Text = "⚽ PATEAR (F)",
+	Text = "⚽ PATEAR (clic o F)",
 	Parent = kickArea,
 }, COLORS.Green)
 stroke(COLORS.GreenDark, 3).Parent = kickButton
+kickArea.Visible = false
+
+local kickHint = textLabel({
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -24),
+	Size = UDim2.new(0.6, 0, 0, 36),
+	Text = "⚽ Cruza la línea blanca para patear",
+	TextStrokeTransparency = 0,
+	Parent = hud,
+})
+create("UISizeConstraint", { MaxSize = Vector2.new(520, 36), Parent = kickHint })
 
 -- "+20 PODER" y "¡PERFECTO!"
 local powerGainLabel = textLabel({
@@ -1047,6 +1063,13 @@ end)
 -- Monedas en vivo (los futbolistas pagan cada segundo)
 task.spawn(function()
 	local stats = player:WaitForChild("leaderstats")
+	local powerValue = stats:WaitForChild("Poder") :: IntValue
+	powerValue.Changed:Connect(function(value)
+		if data then
+			data.Power = value
+		end
+		powerStat.Text = "💪 " .. Config.FormatShort(value)
+	end)
 	local coinsValue = stats:WaitForChild("Monedas") :: IntValue
 	coinsValue.Changed:Connect(function(value)
 		coins = value
@@ -1100,7 +1123,7 @@ local function finishKick(myKick: number)
 end
 
 local function kick()
-	if kicking or not data then
+	if kicking or not data or not inKickZone or trainingIndex then
 		return
 	end
 	setKickingState(true)
@@ -1128,7 +1151,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		end
 		return
 	end
-	if not gameProcessed and input.KeyCode == Enum.KeyCode.F then
+	if gameProcessed then
+		return
+	end
+	-- Después de cruzar la línea: tecla F o clic del mouse para patear
+	if input.KeyCode == Enum.KeyCode.F or (inKickZone and input.UserInputType == Enum.UserInputType.MouseButton1) then
 		kick()
 	end
 end)
@@ -1250,12 +1277,180 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 	end)
 end)
 
+-- ============================================================
+-- Gimnasio
+-- ============================================================
+local trainPanel = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -16),
+	Size = UDim2.new(0, 360, 0, 190),
+	BackgroundColor3 = COLORS.Panel,
+	BackgroundTransparency = 0.1,
+	Visible = false,
+	Parent = gui,
+}, { corner(16), stroke(Color3.new(0, 0, 0), 3) })
+local trainTitle = textLabel({
+	Position = UDim2.new(0, 12, 0, 8),
+	Size = UDim2.new(1, -24, 0, 32),
+	Text = "",
+	TextStrokeTransparency = 0,
+	Parent = trainPanel,
+})
+local trainInfo = textLabel({
+	Position = UDim2.new(0, 12, 0, 40),
+	Size = UDim2.new(1, -24, 0, 22),
+	Text = "",
+	TextColor3 = COLORS.Money,
+	Parent = trainPanel,
+})
+local trainButton = button({
+	Position = UDim2.new(0, 12, 0, 70),
+	Size = UDim2.new(1, -24, 0, 62),
+	Text = "💪 ENTRENAR (clic)",
+	Parent = trainPanel,
+}, Color3.fromRGB(255, 140, 40))
+stroke(Color3.fromRGB(150, 70, 0), 3).Parent = trainButton
+local autoButton = button({
+	Position = UDim2.new(0, 12, 0, 140),
+	Size = UDim2.new(0.5, -18, 0, 40),
+	Text = "🔁 Auto: NO",
+	Parent = trainPanel,
+}, COLORS.Gray)
+local exitButton = button({
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -12, 0, 140),
+	Size = UDim2.new(0.5, -18, 0, 40),
+	Text = "Salir (Q)",
+	Parent = trainPanel,
+}, COLORS.Red)
+
+local autoTrain = false
+local lastRep = 0
+local weightPivots: { [Model]: CFrame } = {}
+
+local function getStation(index: number): Model?
+	local map = workspace:FindFirstChild("Mapa")
+	local gymFolder = map and map:FindFirstChild("Gimnasio", true)
+	return gymFolder and gymFolder:FindFirstChild("Estacion" .. index) :: Model?
+end
+
+-- Sube y baja el peso del aparato
+local function bobWeight(index: number)
+	local station = getStation(index)
+	local peso = station and station:FindFirstChild("Peso") :: Model?
+	if not peso then
+		return
+	end
+	local original = weightPivots[peso] or peso:GetPivot()
+	weightPivots[peso] = original
+	task.spawn(function()
+		local duration = 0.35
+		local started = os.clock()
+		while true do
+			local alpha = math.min((os.clock() - started) / duration, 1)
+			peso:PivotTo(original * CFrame.new(0, math.sin(alpha * math.pi) * 1.6, 0))
+			if alpha >= 1 then
+				break
+			end
+			RunService.RenderStepped:Wait()
+		end
+	end)
+end
+
+local function stopTraining()
+	if not trainingIndex then
+		return
+	end
+	trainingIndex = nil
+	autoTrain = false
+	autoButton.Text = "🔁 Auto: NO"
+	autoButton.BackgroundColor3 = COLORS.Gray
+	trainPanel.Visible = false
+	StopTrainingEvent:FireServer()
+end
+
+local function trainRep()
+	local index = trainingIndex
+	if not index then
+		return
+	end
+	local now = os.clock()
+	if now - lastRep < Config.TRAIN_COOLDOWN then
+		return
+	end
+	lastRep = now
+	TrainEvent:FireServer()
+	local info = Config.TrainingStations[index]
+	floatText(powerGainLabel, "+" .. info.Gain .. " 💪", UDim2.new(0.5, 150, 0.55, 0))
+	bobWeight(index)
+end
+
+local function startTraining(index: number)
+	if kicking or trainingIndex == index then
+		return
+	end
+	local ok, message = StartTrainingFunction:InvokeServer(index)
+	if not ok then
+		toast(message, COLORS.Red)
+		return
+	end
+	if openWindow then
+		openWindow.Visible = false
+		openWindow = nil
+	end
+	local info = Config.TrainingStations[index]
+	trainingIndex = index
+	trainTitle.Text = "🏋️ " .. info.Name
+	trainInfo.Text = "+" .. info.Gain .. " de poder por repetición"
+	trainPanel.Visible = true
+	popIn(trainPanel)
+end
+
+trainButton.Activated:Connect(trainRep)
+exitButton.Activated:Connect(stopTraining)
+autoButton.Activated:Connect(function()
+	autoTrain = not autoTrain
+	autoButton.Text = if autoTrain then "🔁 Auto: SÍ" else "🔁 Auto: NO"
+	autoButton.BackgroundColor3 = if autoTrain then COLORS.Green else COLORS.Gray
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if not trainingIndex or gameProcessed then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.Q then
+		stopTraining()
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		trainRep()
+	end
+end)
+
+RunService.Heartbeat:Connect(function()
+	if autoTrain and trainingIndex then
+		trainRep()
+	end
+end)
+
+player.CharacterAdded:Connect(function()
+	if trainingIndex then
+		trainingIndex = nil
+		autoTrain = false
+		trainPanel.Visible = false
+	end
+end)
+
 -- Los puestos del lobby abren la tienda y el índice
 ProximityPromptService.PromptTriggered:Connect(function(prompt)
 	if kicking then
 		return
 	end
-	if prompt.Name == "AbrirTienda" and openWindow ~= shopWindow then
+	if prompt.Name == "Entrenar" then
+		local station = prompt:FindFirstAncestorOfClass("Model")
+		local index = station and station:GetAttribute("Index")
+		if typeof(index) == "number" then
+			startTraining(index)
+		end
+	elseif prompt.Name == "AbrirTienda" and openWindow ~= shopWindow then
 		toggleWindow(shopWindow)
 	elseif prompt.Name == "AbrirIndice" and openWindow ~= indexWindow then
 		toggleWindow(indexWindow)
@@ -1364,6 +1559,12 @@ end)
 local lastBiome = ""
 
 RunService.RenderStepped:Connect(function(dt)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	inKickZone = root ~= nil and Config.IsInKickZone(root.Position)
+	kickArea.Visible = inKickZone and not trainingIndex
+	kickHint.Visible = not inKickZone and not trainingIndex
+
 	if not kicking then
 		needleTime += dt
 		-- Onda triangular: 0 -> 1 -> 0

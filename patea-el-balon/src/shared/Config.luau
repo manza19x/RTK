@@ -71,7 +71,7 @@ end
 -- ------------------------------------------------------------
 Config.START_POWER = 10
 Config.BASE_DISTANCE = 60
-Config.DISTANCE_PER_POWER = 0.05
+Config.DISTANCE_PER_POWER = 0.012
 Config.PERFECT_THRESHOLD = 0.9 -- si la barra está arriba de 90% es "¡PERFECTO!"
 Config.PERFECT_BONUS = 1.15 -- la patada perfecta va 15% más lejos
 Config.PERFECT_POWER_MULTIPLIER = 2 -- y te da el doble de poder
@@ -85,6 +85,34 @@ function Config.GetPowerGain(timing: number): number
 	end
 	return gain
 end
+
+-- Línea de patada: al cruzarla aparece la barra de poder
+Config.KICK_LINE_Z = -14 -- donde está la línea blanca
+Config.KICK_ZONE_HALF_WIDTH = 14 -- ancho de la zona de patada (desde el centro)
+Config.RETURN_POSITION = Vector3.new(0, 3, -26) -- a donde vuelves después de patear
+
+function Config.IsInKickZone(position: Vector3): boolean
+	return math.abs(position.X) <= Config.KICK_ZONE_HALF_WIDTH
+		and position.Z >= Config.KICK_LINE_Z
+		and position.Z <= 6
+		and position.Y < 20
+end
+
+-- ------------------------------------------------------------
+-- GIMNASIO: estaciones para entrenar las piernas
+-- Cada repetición da `Gain` de poder. Necesitas `Required` de poder para usarla.
+-- ------------------------------------------------------------
+export type Station = { Name: string, Gain: number, Required: number, Equipment: string }
+
+Config.TRAIN_COOLDOWN = 0.8 -- segundos entre repeticiones
+Config.TrainingStations = {
+	{ Name = "Mancuernas", Gain = 1, Required = 0, Equipment = "Mancuernas" },
+	{ Name = "Sentadillas", Gain = 2, Required = 200, Equipment = "Barra" },
+	{ Name = "Prensa de piernas", Gain = 3, Required = 800, Equipment = "Prensa" },
+	{ Name = "Saco de patadas", Gain = 5, Required = 2000, Equipment = "Saco" },
+	{ Name = "Llantas gigantes", Gain = 8, Required = 4000, Equipment = "Llantas" },
+	{ Name = "Máquina dorada", Gain = 12, Required = 7000, Equipment = "Dorada" },
+} :: { Station }
 
 -- ------------------------------------------------------------
 -- BALONES DE LA TIENDA (se compran en orden)

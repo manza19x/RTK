@@ -302,7 +302,7 @@ end
 -- Lobby colorido con los corrales de cada jugador
 -- ------------------------------------------------------------
 local LOBBY_HALF_WIDTH = 110
-local LOBBY_DEPTH = 180
+local LOBBY_DEPTH = 260
 local TILE = 20
 local GRASS_A = Color3.fromRGB(95, 225, 60)
 local GRASS_B = Color3.fromRGB(130, 245, 85)
@@ -579,12 +579,12 @@ end
 -- Colinas a cuadros detrás de las paredes con árboles arriba
 local function buildHills(parent: Instance, rng: Random)
 	local hills = {
-		{ Size = Vector3.new(320, 80, 30), Position = Vector3.new(0, 38, -205) },
-		{ Size = Vector3.new(400, 105, 40), Position = Vector3.new(0, 50, -240) },
-		{ Size = Vector3.new(40, 85, 230), Position = Vector3.new(-150, 40, -95) },
-		{ Size = Vector3.new(40, 85, 230), Position = Vector3.new(150, 40, -95) },
-		{ Size = Vector3.new(50, 110, 300), Position = Vector3.new(-195, 53, -110) },
-		{ Size = Vector3.new(50, 110, 300), Position = Vector3.new(195, 53, -110) },
+		{ Size = Vector3.new(320, 80, 30), Position = Vector3.new(0, 38, -285) },
+		{ Size = Vector3.new(400, 105, 40), Position = Vector3.new(0, 50, -320) },
+		{ Size = Vector3.new(40, 85, 310), Position = Vector3.new(-150, 40, -135) },
+		{ Size = Vector3.new(40, 85, 310), Position = Vector3.new(150, 40, -135) },
+		{ Size = Vector3.new(50, 110, 380), Position = Vector3.new(-195, 53, -150) },
+		{ Size = Vector3.new(50, 110, 380), Position = Vector3.new(195, 53, -150) },
 	}
 	for i, hill in hills do
 		makePart({ Name = "Colina", Size = hill.Size, Position = hill.Position, Color = DIRT:Lerp(Color3.new(0, 0, 0), (i % 2) * 0.1), Material = Enum.Material.SmoothPlastic, Parent = parent })
@@ -599,6 +599,173 @@ local function buildHills(parent: Instance, rng: Random)
 			tree.Parent = parent
 		end
 	end
+end
+
+-- ------------------------------------------------------------
+-- Gimnasio
+-- ------------------------------------------------------------
+-- El gimnasio está al fondo del lobby, detrás del monumento: 6 estaciones en fila
+local STATION_X = { -50, -30, -10, 10, 30, 50 }
+local GYM_Z = -220
+
+-- Cada aparato recibe `base` (en el piso, mirando hacia donde se para el jugador)
+-- y pone las partes que se mueven al entrenar dentro del modelo "Peso".
+local Equipment = {}
+
+local function gymPart(parent: Instance, base: CFrame, size: Vector3, offset: CFrame, color: Color3, props: { [string]: any }?): Part
+	local all: { [string]: any } = { Size = size, CFrame = base * offset, Color = color, Material = Enum.Material.SmoothPlastic, Parent = parent }
+	if props then
+		for key, value in props do
+			all[key] = value
+		end
+	end
+	return makePart(all)
+end
+
+local METAL = Color3.fromRGB(70, 75, 90)
+local CYL = { Shape = Enum.PartType.Cylinder }
+
+function Equipment.Mancuernas(model: Model, peso: Model, base: CFrame)
+	gymPart(model, base, Vector3.new(8, 2.5, 3), CFrame.new(0, 1.25, 1), METAL)
+	gymPart(peso, base, Vector3.new(4, 0.6, 0.6), CFrame.new(0, 3.3, 0.5), Color3.fromRGB(200, 200, 210), CYL)
+	for _, x in { -1.8, 1.8 } do
+		gymPart(peso, base, Vector3.new(0.8, 2.2, 2.2), CFrame.new(x, 3.3, 0.5), Color3.fromRGB(60, 140, 255), CYL)
+	end
+end
+
+function Equipment.Barra(model: Model, peso: Model, base: CFrame)
+	for _, x in { -4, 4 } do
+		gymPart(model, base, Vector3.new(0.8, 9, 0.8), CFrame.new(x, 4.5, 1), METAL)
+	end
+	gymPart(peso, base, Vector3.new(10, 0.5, 0.5), CFrame.new(0, 6.5, 1), Color3.fromRGB(200, 200, 210), CYL)
+	for _, x in { -4.8, 4.8 } do
+		gymPart(peso, base, Vector3.new(0.8, 4, 4), CFrame.new(x, 6.5, 1), Color3.fromRGB(230, 60, 60), CYL)
+	end
+end
+
+function Equipment.Prensa(model: Model, peso: Model, base: CFrame)
+	gymPart(model, base, Vector3.new(4, 1.5, 7), CFrame.new(0, 0.75, -0.5), METAL)
+	gymPart(model, base, Vector3.new(3.6, 4, 1), CFrame.new(0, 3, -3.5) * CFrame.Angles(math.rad(-20), 0, 0), Color3.fromRGB(40, 40, 50))
+	for _, x in { -1.8, 1.8 } do
+		gymPart(model, base, Vector3.new(0.6, 8, 0.6), CFrame.new(x, 4, 3), METAL)
+	end
+	for i = 0, 3 do
+		gymPart(peso, base, Vector3.new(3, 0.6, 2.2), CFrame.new(0, 1.8 + i * 0.7, 3), if i == 3 then Color3.fromRGB(255, 150, 40) else Color3.fromRGB(35, 35, 40))
+	end
+end
+
+function Equipment.Saco(model: Model, peso: Model, base: CFrame)
+	gymPart(model, base, Vector3.new(1, 13, 1), CFrame.new(0, 6.5, 3), METAL)
+	gymPart(model, base, Vector3.new(1, 1, 5), CFrame.new(0, 12.5, 1), METAL)
+	gymPart(model, base, Vector3.new(0.2, 2.5, 0.2), CFrame.new(0, 10.8, -1), Color3.fromRGB(150, 150, 150))
+	gymPart(peso, base, Vector3.new(6, 3.4, 3.4), CFrame.new(0, 6.6, -1) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(210, 40, 50), CYL)
+end
+
+function Equipment.Llantas(model: Model, peso: Model, base: CFrame)
+	for i = 0, 1 do
+		gymPart(model, base, Vector3.new(1.6, 6, 6), CFrame.new(-4.5, 0.8 + i * 1.6, 2) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(30, 30, 35), CYL)
+	end
+	gymPart(peso, base, Vector3.new(2.4, 7.5, 7.5), CFrame.new(1, 3.75, 1) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(30, 30, 35), CYL)
+	gymPart(peso, base, Vector3.new(2.5, 4, 4), CFrame.new(1, 3.75, 1) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(255, 200, 50), CYL)
+end
+
+function Equipment.Dorada(model: Model, peso: Model, base: CFrame)
+	local gold = Color3.fromRGB(255, 200, 50)
+	gymPart(model, base, Vector3.new(10, 1, 6), CFrame.new(0, 0.5, 1), gold, { Material = Enum.Material.Foil })
+	for _, x in { -4.4, 4.4 } do
+		gymPart(model, base, Vector3.new(1, 10, 1), CFrame.new(x, 5.5, 1), Color3.fromRGB(80, 220, 255), { Material = Enum.Material.Neon })
+	end
+	gymPart(peso, base, Vector3.new(10, 0.6, 0.6), CFrame.new(0, 6.5, 1), gold, { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Foil })
+	for _, x in { -3.6, 3.6 } do
+		gymPart(peso, base, Vector3.new(0.9, 4.5, 4.5), CFrame.new(x, 6.5, 1), Color3.fromRGB(190, 90, 255), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Neon })
+	end
+end
+
+local STATION_COLORS = { Color3.fromRGB(70, 160, 255), Color3.fromRGB(80, 220, 90), Color3.fromRGB(255, 200, 50), Color3.fromRGB(255, 140, 40), Color3.fromRGB(230, 60, 70), Color3.fromRGB(190, 90, 255) }
+
+local function buildGym(parent: Instance)
+	local gym = Instance.new("Folder")
+	gym.Name = "Gimnasio"
+	gym.Parent = parent
+
+	makePart({ Name = "PisoGimnasio", Size = Vector3.new(128, 0.4, 36), Position = Vector3.new(0, 0.2, GYM_Z), Color = Color3.fromRGB(55, 65, 90), TopSurface = Enum.SurfaceType.Studs, Parent = gym })
+	for _, dz in { -18.5, 18.5 } do
+		makePart({ Name = "Borde", Size = Vector3.new(128, 0.6, 1), Position = Vector3.new(0, 0.3, GYM_Z + dz), Color = Color3.fromRGB(255, 200, 50), Parent = gym })
+	end
+	local signAnchor = makePart({ Name = "Letrero", Size = Vector3.one, Position = Vector3.new(0, 24, GYM_Z - 6), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = gym })
+	local sign = Instance.new("BillboardGui")
+	sign.Size = UDim2.fromScale(34, 8)
+	sign.LightInfluence = 0
+	sign.MaxDistance = 400
+	sign.Parent = signAnchor
+	makeLabel(sign, "🏋️ GIMNASIO", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.fromRGB(255, 220, 80))
+
+	for index, x in STATION_X do
+		local info = Config.TrainingStations[index]
+		if not info then
+			continue
+		end
+		local station = Instance.new("Model")
+		station.Name = "Estacion" .. index
+		station:SetAttribute("Index", index)
+
+		local standPos = Vector3.new(x, 0.4, GYM_Z + 6)
+		local equipPos = Vector3.new(x, 0.4, GYM_Z - 6)
+		local base = CFrame.lookAt(equipPos, Vector3.new(standPos.X, equipPos.Y, standPos.Z))
+
+		local peso = Instance.new("Model")
+		peso.Name = "Peso"
+		peso.Parent = station
+		Equipment[info.Equipment](station, peso, base)
+
+		-- Tapete donde se para el jugador
+		local mat = makePart({ Name = "Tapete", Size = Vector3.new(6, 0.2, 6), Position = standPos + Vector3.new(0, 0.1, 0), Color = STATION_COLORS[index], TopSurface = Enum.SurfaceType.Studs, CanCollide = false, Parent = station })
+		local stand = makePart({ Name = "Punto", Size = Vector3.one, CFrame = CFrame.lookAt(standPos + Vector3.new(0, 3, 0), Vector3.new(equipPos.X, standPos.Y + 3, equipPos.Z)), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = station })
+		stand.Name = "Punto"
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "Entrenar"
+		prompt.ActionText = "Entrenar"
+		prompt.ObjectText = info.Name
+		prompt.KeyboardKeyCode = Enum.KeyCode.E
+		prompt.MaxActivationDistance = 9
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = mat
+
+		local labelAnchor = makePart({ Name = "Etiqueta", Size = Vector3.one, Position = equipPos + Vector3.new(0, 15, 0), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = station })
+		local billboard = Instance.new("BillboardGui")
+		billboard.Size = UDim2.fromScale(14, 6)
+		billboard.LightInfluence = 0
+		billboard.MaxDistance = 120
+		billboard.Parent = labelAnchor
+		makeLabel(billboard, info.Name, UDim2.fromScale(1, 0.4), UDim2.fromScale(0, 0), Color3.new(1, 1, 1))
+		makeLabel(billboard, "+" .. info.Gain .. " 💪 por repetición", UDim2.fromScale(1, 0.3), UDim2.fromScale(0, 0.4), Color3.fromRGB(120, 255, 120))
+		makeLabel(
+			billboard,
+			if info.Required > 0 then "Requiere " .. Config.FormatShort(info.Required) .. " 💪" else "¡Para todos!",
+			UDim2.fromScale(1, 0.3),
+			UDim2.fromScale(0, 0.7),
+			STATION_COLORS[index]
+		)
+		station.Parent = gym
+	end
+end
+
+-- Línea de patada: al cruzarla aparece la barra de poder
+local function buildKickLine(parent: Instance)
+	local half = Config.KICK_ZONE_HALF_WIDTH
+	local z = Config.KICK_LINE_Z
+	makePart({ Name = "LineaDePatada", Size = Vector3.new(half * 2, 0.3, 1.6), Position = Vector3.new(0, 0.15, z), Color = Color3.new(1, 1, 1), Material = Enum.Material.Neon, CanCollide = false, Parent = parent })
+	makePart({ Name = "ZonaDePatada", Size = Vector3.new(half * 2, 0.24, -z + 6), Position = Vector3.new(0, 0.12, (z + 6) / 2), Color = Color3.fromRGB(120, 255, 150), Material = Enum.Material.Neon, Transparency = 0.8, CanCollide = false, Parent = parent })
+	for side = -1, 1, 2 do
+		makePart({ Name = "PosteLinea", Size = Vector3.new(1.2, 6, 1.2), Position = Vector3.new(side * (half + 1), 3, z), Color = Color3.new(1, 1, 1), Material = Enum.Material.Neon, Parent = parent })
+	end
+	local anchor = makePart({ Name = "Aviso", Size = Vector3.one, Position = Vector3.new(0, 7, z - 1), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = parent })
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(22, 3.5)
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 200
+	billboard.Parent = anchor
+	makeLabel(billboard, "⚽ Cruza la línea para patear", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(1, 1, 1))
 end
 
 local function decorateLobby(lobby: Instance, rng: Random)
@@ -627,13 +794,15 @@ local function decorateLobby(lobby: Instance, rng: Random)
 	buildStall(lobby, Vector3.new(-32, 0, -160), Vector3.new(1, 0, 0.4), Color3.fromRGB(230, 60, 70), "🛒 TIENDA", "AbrirTienda", "Abrir tienda")
 	buildStall(lobby, Vector3.new(32, 0, -160), Vector3.new(-1, 0, 0.4), Color3.fromRGB(60, 120, 240), "📖 ÍNDICE", "AbrirIndice", "Ver índice")
 	buildMonument(lobby, Vector3.new(0, 0, -170))
+	buildGym(lobby)
+	buildKickLine(lobby)
 	for _, x in { -104, 104 } do
-		for z = -20, -170, -25 do
+		for z = -20, -250, -25 do
 			buildBush(lobby, Vector3.new(x, 0, z), rng)
 		end
 	end
 	for _, x in { -60, -82, 60, 82 } do
-		buildBush(lobby, Vector3.new(x, 0, -174), rng)
+		buildBush(lobby, Vector3.new(x, 0, -254), rng)
 	end
 end
 
@@ -682,13 +851,13 @@ local function buildLobby(map: Folder)
 	end
 
 	-- Árboles y flores
-	for _, pos in { Vector3.new(-100, 0, -172), Vector3.new(100, 0, -172), Vector3.new(40, 0, -100), Vector3.new(-40, 0, -100) } do
+	for _, pos in { Vector3.new(-100, 0, -252), Vector3.new(100, 0, -252), Vector3.new(-100, 0, -175), Vector3.new(100, 0, -175) } do
 		local tree = Instance.new("Model")
 		tree.Name = "Arbol"
 		Decorations.Arbol(tree, pos, rng)
 		tree.Parent = lobby
 	end
-	for _, pos in { Vector3.new(-25, 0, -60), Vector3.new(25, 0, -60), Vector3.new(-25, 0, -130), Vector3.new(25, 0, -130), Vector3.new(-12, 0, -20), Vector3.new(12, 0, -20) } do
+	for _, pos in { Vector3.new(-25, 0, -130), Vector3.new(25, 0, -130), Vector3.new(-22, 0, -20), Vector3.new(22, 0, -20) } do
 		flowers(lobby, pos, rng)
 	end
 

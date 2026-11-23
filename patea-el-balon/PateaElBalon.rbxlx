@@ -91,7 +91,7 @@ end
 -- ------------------------------------------------------------
 Config.START_POWER = 10
 Config.BASE_DISTANCE = 60
-Config.DISTANCE_PER_POWER = 0.05
+Config.DISTANCE_PER_POWER = 0.012
 Config.PERFECT_THRESHOLD = 0.9 -- si la barra está arriba de 90% es "¡PERFECTO!"
 Config.PERFECT_BONUS = 1.15 -- la patada perfecta va 15% más lejos
 Config.PERFECT_POWER_MULTIPLIER = 2 -- y te da el doble de poder
@@ -105,6 +105,34 @@ function Config.GetPowerGain(timing: number): number
 	end
 	return gain
 end
+
+-- Línea de patada: al cruzarla aparece la barra de poder
+Config.KICK_LINE_Z = -14 -- donde está la línea blanca
+Config.KICK_ZONE_HALF_WIDTH = 14 -- ancho de la zona de patada (desde el centro)
+Config.RETURN_POSITION = Vector3.new(0, 3, -26) -- a donde vuelves después de patear
+
+function Config.IsInKickZone(position: Vector3): boolean
+	return math.abs(position.X) <= Config.KICK_ZONE_HALF_WIDTH
+		and position.Z >= Config.KICK_LINE_Z
+		and position.Z <= 6
+		and position.Y < 20
+end
+
+-- ------------------------------------------------------------
+-- GIMNASIO: estaciones para entrenar las piernas
+-- Cada repetición da `Gain` de poder. Necesitas `Required` de poder para usarla.
+-- ------------------------------------------------------------
+export type Station = { Name: string, Gain: number, Required: number, Equipment: string }
+
+Config.TRAIN_COOLDOWN = 0.8 -- segundos entre repeticiones
+Config.TrainingStations = {
+	{ Name = "Mancuernas", Gain = 1, Required = 0, Equipment = "Mancuernas" },
+	{ Name = "Sentadillas", Gain = 2, Required = 200, Equipment = "Barra" },
+	{ Name = "Prensa de piernas", Gain = 3, Required = 800, Equipment = "Prensa" },
+	{ Name = "Saco de patadas", Gain = 5, Required = 2000, Equipment = "Saco" },
+	{ Name = "Llantas gigantes", Gain = 8, Required = 4000, Equipment = "Llantas" },
+	{ Name = "Máquina dorada", Gain = 12, Required = 7000, Equipment = "Dorada" },
+} :: { Station }
 
 -- ------------------------------------------------------------
 -- BALONES DE LA TIENDA (se compran en orden)
@@ -525,6 +553,9 @@ local KickResultEvent: RemoteEvent = remote("RemoteEvent", "KickResult")
 local AnnouncementEvent: RemoteEvent = remote("RemoteEvent", "Announcement")
 local DataUpdatedEvent: RemoteEvent = remote("RemoteEvent", "DataUpdated")
 local NotifyEvent: RemoteEvent = remote("RemoteEvent", "Notify")
+local StartTrainingFunction: RemoteFunction = remote("RemoteFunction", "StartTraining")
+local TrainEvent: RemoteEvent = remote("RemoteEvent", "Train")
+local StopTrainingEvent: RemoteEvent = remote("RemoteEvent", "StopTraining")
 local GetDataFunction: RemoteFunction = remote("RemoteFunction", "GetData")
 local PurchaseFunction: RemoteFunction = remote("RemoteFunction", "Purchase")
 
@@ -801,9 +832,23 @@ local function placeCharacterBehindBall(player: Player)
 	end
 end
 
+local function getRoot(player: Player): BasePart?
+	local character = player.Character
+	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+local function returnBehindLine(player: Player)
+	local character = player.Character
+	if character and getRoot(player) then
+		character:PivotTo(CFrame.lookAt(Config.RETURN_POSITION, Config.RETURN_POSITION + Vector3.new(0, 0, 10)))
+	end
+end
+
 local function handleKick(player: Player, timing: number)
 	local data = DataManager.Get(player)
-	if not data then
+	local root = getRoot(player)
+	-- Solo se puede patear después de cruzar la línea (con un poco de tolerancia por el lag)
+	if not data or not root or not Config.IsInKickZone(root.Position + Vector3.new(0, 0, 4)) then
 		return
 	end
 
@@ -869,6 +914,7 @@ local function handleKick(player: Player, timing: number)
 		current.BestDistance = distance
 	end
 	local squadStatus, replacedId, saleCoins = addToSquad(current, footballer)
+	returnBehindLine(player)
 
 	KickResultEvent:FireClient(player, {
 		FootballerId = footballer.Id,
@@ -915,6 +961,80 @@ end)
 Players.PlayerRemoving:Connect(function(player)
 	busy[player] = nil
 end)
+
+-- ------------------------------------------------------------
+-- Gimnasio
+-- ------------------------------------------------------------
+type TrainingState = { Index: number, LastRep: number }
+local training: { [Player]: TrainingState } = {}
+local gym = map:FindFirstChild("Gimnasio", true)
+
+local function stopTraining(player: Player)
+	if not training[player] then
+		return
+	end
+	training[player] = nil
+	local root = getRoot(player)
+	if root then
+		root.Anchored = false
+	end
+end
+
+StartTrainingFunction.OnServerInvoke = function(player: Player, index: any): (boolean, string)
+	local data = DataManager.Get(player)
+	local root = getRoot(player)
+	local info = if typeof(index) == "number" then Config.TrainingStations[index] else nil
+	local station = gym and info and gym:FindFirstChild("Estacion" .. index)
+	if not data or not root or not info or not station then
+		return false, "No puedes entrenar ahora."
+	end
+	if busy[player] then
+		return false, "¡Espera a que caiga tu balón!"
+	end
+	local stand = station:FindFirstChild("Punto") :: BasePart
+	if (root.Position - stand.Position).Magnitude > 16 then
+		return false, "Acércate más al aparato."
+	end
+	if data.Power < info.Required then
+		return false, "🔒 Necesitas " .. Config.FormatShort(info.Required) .. " de poder para " .. info.Name .. "."
+	end
+	stopTraining(player)
+	training[player] = { Index = index, LastRep = 0 }
+	root.Anchored = true
+	player.Character:PivotTo(stand.CFrame)
+	return true, info.Name
+end
+
+TrainEvent.OnServerEvent:Connect(function(player: Player)
+	local state = training[player]
+	local data = DataManager.Get(player)
+	if not state or not data then
+		return
+	end
+	local now = os.clock()
+	if now - state.LastRep < Config.TRAIN_COOLDOWN * 0.85 then
+		return -- demasiado rápido
+	end
+	state.LastRep = now
+	data.Power += Config.TrainingStations[state.Index].Gain
+	updateLeaderstats(player)
+end)
+
+StopTrainingEvent.OnServerEvent:Connect(stopTraining)
+
+Players.PlayerRemoving:Connect(function(player)
+	training[player] = nil
+end)
+
+local function watchCharacter(player: Player)
+	player.CharacterRemoving:Connect(function()
+		training[player] = nil
+	end)
+end
+Players.PlayerAdded:Connect(watchCharacter)
+for _, player in Players:GetPlayers() do
+	watchCharacter(player)
+end
 
 -- ------------------------------------------------------------
 -- Tienda y plantilla
@@ -1268,7 +1388,7 @@ end
 -- Lobby colorido con los corrales de cada jugador
 -- ------------------------------------------------------------
 local LOBBY_HALF_WIDTH = 110
-local LOBBY_DEPTH = 180
+local LOBBY_DEPTH = 260
 local TILE = 20
 local GRASS_A = Color3.fromRGB(95, 225, 60)
 local GRASS_B = Color3.fromRGB(130, 245, 85)
@@ -1545,12 +1665,12 @@ end
 -- Colinas a cuadros detrás de las paredes con árboles arriba
 local function buildHills(parent: Instance, rng: Random)
 	local hills = {
-		{ Size = Vector3.new(320, 80, 30), Position = Vector3.new(0, 38, -205) },
-		{ Size = Vector3.new(400, 105, 40), Position = Vector3.new(0, 50, -240) },
-		{ Size = Vector3.new(40, 85, 230), Position = Vector3.new(-150, 40, -95) },
-		{ Size = Vector3.new(40, 85, 230), Position = Vector3.new(150, 40, -95) },
-		{ Size = Vector3.new(50, 110, 300), Position = Vector3.new(-195, 53, -110) },
-		{ Size = Vector3.new(50, 110, 300), Position = Vector3.new(195, 53, -110) },
+		{ Size = Vector3.new(320, 80, 30), Position = Vector3.new(0, 38, -285) },
+		{ Size = Vector3.new(400, 105, 40), Position = Vector3.new(0, 50, -320) },
+		{ Size = Vector3.new(40, 85, 310), Position = Vector3.new(-150, 40, -135) },
+		{ Size = Vector3.new(40, 85, 310), Position = Vector3.new(150, 40, -135) },
+		{ Size = Vector3.new(50, 110, 380), Position = Vector3.new(-195, 53, -150) },
+		{ Size = Vector3.new(50, 110, 380), Position = Vector3.new(195, 53, -150) },
 	}
 	for i, hill in hills do
 		makePart({ Name = "Colina", Size = hill.Size, Position = hill.Position, Color = DIRT:Lerp(Color3.new(0, 0, 0), (i % 2) * 0.1), Material = Enum.Material.SmoothPlastic, Parent = parent })
@@ -1565,6 +1685,173 @@ local function buildHills(parent: Instance, rng: Random)
 			tree.Parent = parent
 		end
 	end
+end
+
+-- ------------------------------------------------------------
+-- Gimnasio
+-- ------------------------------------------------------------
+-- El gimnasio está al fondo del lobby, detrás del monumento: 6 estaciones en fila
+local STATION_X = { -50, -30, -10, 10, 30, 50 }
+local GYM_Z = -220
+
+-- Cada aparato recibe `base` (en el piso, mirando hacia donde se para el jugador)
+-- y pone las partes que se mueven al entrenar dentro del modelo "Peso".
+local Equipment = {}
+
+local function gymPart(parent: Instance, base: CFrame, size: Vector3, offset: CFrame, color: Color3, props: { [string]: any }?): Part
+	local all: { [string]: any } = { Size = size, CFrame = base * offset, Color = color, Material = Enum.Material.SmoothPlastic, Parent = parent }
+	if props then
+		for key, value in props do
+			all[key] = value
+		end
+	end
+	return makePart(all)
+end
+
+local METAL = Color3.fromRGB(70, 75, 90)
+local CYL = { Shape = Enum.PartType.Cylinder }
+
+function Equipment.Mancuernas(model: Model, peso: Model, base: CFrame)
+	gymPart(model, base, Vector3.new(8, 2.5, 3), CFrame.new(0, 1.25, 1), METAL)
+	gymPart(peso, base, Vector3.new(4, 0.6, 0.6), CFrame.new(0, 3.3, 0.5), Color3.fromRGB(200, 200, 210), CYL)
+	for _, x in { -1.8, 1.8 } do
+		gymPart(peso, base, Vector3.new(0.8, 2.2, 2.2), CFrame.new(x, 3.3, 0.5), Color3.fromRGB(60, 140, 255), CYL)
+	end
+end
+
+function Equipment.Barra(model: Model, peso: Model, base: CFrame)
+	for _, x in { -4, 4 } do
+		gymPart(model, base, Vector3.new(0.8, 9, 0.8), CFrame.new(x, 4.5, 1), METAL)
+	end
+	gymPart(peso, base, Vector3.new(10, 0.5, 0.5), CFrame.new(0, 6.5, 1), Color3.fromRGB(200, 200, 210), CYL)
+	for _, x in { -4.8, 4.8 } do
+		gymPart(peso, base, Vector3.new(0.8, 4, 4), CFrame.new(x, 6.5, 1), Color3.fromRGB(230, 60, 60), CYL)
+	end
+end
+
+function Equipment.Prensa(model: Model, peso: Model, base: CFrame)
+	gymPart(model, base, Vector3.new(4, 1.5, 7), CFrame.new(0, 0.75, -0.5), METAL)
+	gymPart(model, base, Vector3.new(3.6, 4, 1), CFrame.new(0, 3, -3.5) * CFrame.Angles(math.rad(-20), 0, 0), Color3.fromRGB(40, 40, 50))
+	for _, x in { -1.8, 1.8 } do
+		gymPart(model, base, Vector3.new(0.6, 8, 0.6), CFrame.new(x, 4, 3), METAL)
+	end
+	for i = 0, 3 do
+		gymPart(peso, base, Vector3.new(3, 0.6, 2.2), CFrame.new(0, 1.8 + i * 0.7, 3), if i == 3 then Color3.fromRGB(255, 150, 40) else Color3.fromRGB(35, 35, 40))
+	end
+end
+
+function Equipment.Saco(model: Model, peso: Model, base: CFrame)
+	gymPart(model, base, Vector3.new(1, 13, 1), CFrame.new(0, 6.5, 3), METAL)
+	gymPart(model, base, Vector3.new(1, 1, 5), CFrame.new(0, 12.5, 1), METAL)
+	gymPart(model, base, Vector3.new(0.2, 2.5, 0.2), CFrame.new(0, 10.8, -1), Color3.fromRGB(150, 150, 150))
+	gymPart(peso, base, Vector3.new(6, 3.4, 3.4), CFrame.new(0, 6.6, -1) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(210, 40, 50), CYL)
+end
+
+function Equipment.Llantas(model: Model, peso: Model, base: CFrame)
+	for i = 0, 1 do
+		gymPart(model, base, Vector3.new(1.6, 6, 6), CFrame.new(-4.5, 0.8 + i * 1.6, 2) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(30, 30, 35), CYL)
+	end
+	gymPart(peso, base, Vector3.new(2.4, 7.5, 7.5), CFrame.new(1, 3.75, 1) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(30, 30, 35), CYL)
+	gymPart(peso, base, Vector3.new(2.5, 4, 4), CFrame.new(1, 3.75, 1) * CFrame.Angles(0, math.rad(90), 0), Color3.fromRGB(255, 200, 50), CYL)
+end
+
+function Equipment.Dorada(model: Model, peso: Model, base: CFrame)
+	local gold = Color3.fromRGB(255, 200, 50)
+	gymPart(model, base, Vector3.new(10, 1, 6), CFrame.new(0, 0.5, 1), gold, { Material = Enum.Material.Foil })
+	for _, x in { -4.4, 4.4 } do
+		gymPart(model, base, Vector3.new(1, 10, 1), CFrame.new(x, 5.5, 1), Color3.fromRGB(80, 220, 255), { Material = Enum.Material.Neon })
+	end
+	gymPart(peso, base, Vector3.new(10, 0.6, 0.6), CFrame.new(0, 6.5, 1), gold, { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Foil })
+	for _, x in { -3.6, 3.6 } do
+		gymPart(peso, base, Vector3.new(0.9, 4.5, 4.5), CFrame.new(x, 6.5, 1), Color3.fromRGB(190, 90, 255), { Shape = Enum.PartType.Cylinder, Material = Enum.Material.Neon })
+	end
+end
+
+local STATION_COLORS = { Color3.fromRGB(70, 160, 255), Color3.fromRGB(80, 220, 90), Color3.fromRGB(255, 200, 50), Color3.fromRGB(255, 140, 40), Color3.fromRGB(230, 60, 70), Color3.fromRGB(190, 90, 255) }
+
+local function buildGym(parent: Instance)
+	local gym = Instance.new("Folder")
+	gym.Name = "Gimnasio"
+	gym.Parent = parent
+
+	makePart({ Name = "PisoGimnasio", Size = Vector3.new(128, 0.4, 36), Position = Vector3.new(0, 0.2, GYM_Z), Color = Color3.fromRGB(55, 65, 90), TopSurface = Enum.SurfaceType.Studs, Parent = gym })
+	for _, dz in { -18.5, 18.5 } do
+		makePart({ Name = "Borde", Size = Vector3.new(128, 0.6, 1), Position = Vector3.new(0, 0.3, GYM_Z + dz), Color = Color3.fromRGB(255, 200, 50), Parent = gym })
+	end
+	local signAnchor = makePart({ Name = "Letrero", Size = Vector3.one, Position = Vector3.new(0, 24, GYM_Z - 6), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = gym })
+	local sign = Instance.new("BillboardGui")
+	sign.Size = UDim2.fromScale(34, 8)
+	sign.LightInfluence = 0
+	sign.MaxDistance = 400
+	sign.Parent = signAnchor
+	makeLabel(sign, "🏋️ GIMNASIO", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.fromRGB(255, 220, 80))
+
+	for index, x in STATION_X do
+		local info = Config.TrainingStations[index]
+		if not info then
+			continue
+		end
+		local station = Instance.new("Model")
+		station.Name = "Estacion" .. index
+		station:SetAttribute("Index", index)
+
+		local standPos = Vector3.new(x, 0.4, GYM_Z + 6)
+		local equipPos = Vector3.new(x, 0.4, GYM_Z - 6)
+		local base = CFrame.lookAt(equipPos, Vector3.new(standPos.X, equipPos.Y, standPos.Z))
+
+		local peso = Instance.new("Model")
+		peso.Name = "Peso"
+		peso.Parent = station
+		Equipment[info.Equipment](station, peso, base)
+
+		-- Tapete donde se para el jugador
+		local mat = makePart({ Name = "Tapete", Size = Vector3.new(6, 0.2, 6), Position = standPos + Vector3.new(0, 0.1, 0), Color = STATION_COLORS[index], TopSurface = Enum.SurfaceType.Studs, CanCollide = false, Parent = station })
+		local stand = makePart({ Name = "Punto", Size = Vector3.one, CFrame = CFrame.lookAt(standPos + Vector3.new(0, 3, 0), Vector3.new(equipPos.X, standPos.Y + 3, equipPos.Z)), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = station })
+		stand.Name = "Punto"
+		local prompt = Instance.new("ProximityPrompt")
+		prompt.Name = "Entrenar"
+		prompt.ActionText = "Entrenar"
+		prompt.ObjectText = info.Name
+		prompt.KeyboardKeyCode = Enum.KeyCode.E
+		prompt.MaxActivationDistance = 9
+		prompt.RequiresLineOfSight = false
+		prompt.Parent = mat
+
+		local labelAnchor = makePart({ Name = "Etiqueta", Size = Vector3.one, Position = equipPos + Vector3.new(0, 15, 0), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = station })
+		local billboard = Instance.new("BillboardGui")
+		billboard.Size = UDim2.fromScale(14, 6)
+		billboard.LightInfluence = 0
+		billboard.MaxDistance = 120
+		billboard.Parent = labelAnchor
+		makeLabel(billboard, info.Name, UDim2.fromScale(1, 0.4), UDim2.fromScale(0, 0), Color3.new(1, 1, 1))
+		makeLabel(billboard, "+" .. info.Gain .. " 💪 por repetición", UDim2.fromScale(1, 0.3), UDim2.fromScale(0, 0.4), Color3.fromRGB(120, 255, 120))
+		makeLabel(
+			billboard,
+			if info.Required > 0 then "Requiere " .. Config.FormatShort(info.Required) .. " 💪" else "¡Para todos!",
+			UDim2.fromScale(1, 0.3),
+			UDim2.fromScale(0, 0.7),
+			STATION_COLORS[index]
+		)
+		station.Parent = gym
+	end
+end
+
+-- Línea de patada: al cruzarla aparece la barra de poder
+local function buildKickLine(parent: Instance)
+	local half = Config.KICK_ZONE_HALF_WIDTH
+	local z = Config.KICK_LINE_Z
+	makePart({ Name = "LineaDePatada", Size = Vector3.new(half * 2, 0.3, 1.6), Position = Vector3.new(0, 0.15, z), Color = Color3.new(1, 1, 1), Material = Enum.Material.Neon, CanCollide = false, Parent = parent })
+	makePart({ Name = "ZonaDePatada", Size = Vector3.new(half * 2, 0.24, -z + 6), Position = Vector3.new(0, 0.12, (z + 6) / 2), Color = Color3.fromRGB(120, 255, 150), Material = Enum.Material.Neon, Transparency = 0.8, CanCollide = false, Parent = parent })
+	for side = -1, 1, 2 do
+		makePart({ Name = "PosteLinea", Size = Vector3.new(1.2, 6, 1.2), Position = Vector3.new(side * (half + 1), 3, z), Color = Color3.new(1, 1, 1), Material = Enum.Material.Neon, Parent = parent })
+	end
+	local anchor = makePart({ Name = "Aviso", Size = Vector3.one, Position = Vector3.new(0, 7, z - 1), Transparency = 1, CanCollide = false, CanQuery = false, CanTouch = false, Parent = parent })
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(22, 3.5)
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 200
+	billboard.Parent = anchor
+	makeLabel(billboard, "⚽ Cruza la línea para patear", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(1, 1, 1))
 end
 
 local function decorateLobby(lobby: Instance, rng: Random)
@@ -1593,13 +1880,15 @@ local function decorateLobby(lobby: Instance, rng: Random)
 	buildStall(lobby, Vector3.new(-32, 0, -160), Vector3.new(1, 0, 0.4), Color3.fromRGB(230, 60, 70), "🛒 TIENDA", "AbrirTienda", "Abrir tienda")
 	buildStall(lobby, Vector3.new(32, 0, -160), Vector3.new(-1, 0, 0.4), Color3.fromRGB(60, 120, 240), "📖 ÍNDICE", "AbrirIndice", "Ver índice")
 	buildMonument(lobby, Vector3.new(0, 0, -170))
+	buildGym(lobby)
+	buildKickLine(lobby)
 	for _, x in { -104, 104 } do
-		for z = -20, -170, -25 do
+		for z = -20, -250, -25 do
 			buildBush(lobby, Vector3.new(x, 0, z), rng)
 		end
 	end
 	for _, x in { -60, -82, 60, 82 } do
-		buildBush(lobby, Vector3.new(x, 0, -174), rng)
+		buildBush(lobby, Vector3.new(x, 0, -254), rng)
 	end
 end
 
@@ -1648,13 +1937,13 @@ local function buildLobby(map: Folder)
 	end
 
 	-- Árboles y flores
-	for _, pos in { Vector3.new(-100, 0, -172), Vector3.new(100, 0, -172), Vector3.new(40, 0, -100), Vector3.new(-40, 0, -100) } do
+	for _, pos in { Vector3.new(-100, 0, -252), Vector3.new(100, 0, -252), Vector3.new(-100, 0, -175), Vector3.new(100, 0, -175) } do
 		local tree = Instance.new("Model")
 		tree.Name = "Arbol"
 		Decorations.Arbol(tree, pos, rng)
 		tree.Parent = lobby
 	end
-	for _, pos in { Vector3.new(-25, 0, -60), Vector3.new(25, 0, -60), Vector3.new(-25, 0, -130), Vector3.new(25, 0, -130), Vector3.new(-12, 0, -20), Vector3.new(12, 0, -20) } do
+	for _, pos in { Vector3.new(-25, 0, -130), Vector3.new(25, 0, -130), Vector3.new(-22, 0, -20), Vector3.new(22, 0, -20) } do
 		flowers(lobby, pos, rng)
 	end
 
@@ -2072,6 +2361,9 @@ local DataUpdatedEvent = Remotes:WaitForChild("DataUpdated") :: RemoteEvent
 local GetDataFunction = Remotes:WaitForChild("GetData") :: RemoteFunction
 local PurchaseFunction = Remotes:WaitForChild("Purchase") :: RemoteFunction
 local NotifyEvent = Remotes:WaitForChild("Notify") :: RemoteEvent
+local StartTrainingFunction = Remotes:WaitForChild("StartTraining") :: RemoteFunction
+local TrainEvent = Remotes:WaitForChild("Train") :: RemoteEvent
+local StopTrainingEvent = Remotes:WaitForChild("StopTraining") :: RemoteEvent
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -2079,6 +2371,8 @@ local camera = workspace.CurrentCamera
 local data: any = nil
 local coins = 0 -- se actualiza cada segundo desde leaderstats
 local kicking = false -- true desde que pateas hasta que cierras la revelación
+local inKickZone = false -- true cuando cruzaste la línea de patada
+local trainingIndex: number? = nil -- estación del gimnasio donde estás entrenando
 local cameraMode = "normal" -- "normal", "chase" (sigue al balón) o "reveal"
 local flyingBall: BasePart? = nil
 local needleValue = 0
@@ -2268,10 +2562,21 @@ local kickButton = button({
 	AnchorPoint = Vector2.new(0.5, 1),
 	Position = UDim2.new(0.5, 0, 1, 0),
 	Size = UDim2.new(1, 0, 0, 70),
-	Text = "⚽ PATEAR (F)",
+	Text = "⚽ PATEAR (clic o F)",
 	Parent = kickArea,
 }, COLORS.Green)
 stroke(COLORS.GreenDark, 3).Parent = kickButton
+kickArea.Visible = false
+
+local kickHint = textLabel({
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -24),
+	Size = UDim2.new(0.6, 0, 0, 36),
+	Text = "⚽ Cruza la línea blanca para patear",
+	TextStrokeTransparency = 0,
+	Parent = hud,
+})
+create("UISizeConstraint", { MaxSize = Vector2.new(520, 36), Parent = kickHint })
 
 -- "+20 PODER" y "¡PERFECTO!"
 local powerGainLabel = textLabel({
@@ -3100,6 +3405,13 @@ end)
 -- Monedas en vivo (los futbolistas pagan cada segundo)
 task.spawn(function()
 	local stats = player:WaitForChild("leaderstats")
+	local powerValue = stats:WaitForChild("Poder") :: IntValue
+	powerValue.Changed:Connect(function(value)
+		if data then
+			data.Power = value
+		end
+		powerStat.Text = "💪 " .. Config.FormatShort(value)
+	end)
 	local coinsValue = stats:WaitForChild("Monedas") :: IntValue
 	coinsValue.Changed:Connect(function(value)
 		coins = value
@@ -3153,7 +3465,7 @@ local function finishKick(myKick: number)
 end
 
 local function kick()
-	if kicking or not data then
+	if kicking or not data or not inKickZone or trainingIndex then
 		return
 	end
 	setKickingState(true)
@@ -3181,7 +3493,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		end
 		return
 	end
-	if not gameProcessed and input.KeyCode == Enum.KeyCode.F then
+	if gameProcessed then
+		return
+	end
+	-- Después de cruzar la línea: tecla F o clic del mouse para patear
+	if input.KeyCode == Enum.KeyCode.F or (inKickZone and input.UserInputType == Enum.UserInputType.MouseButton1) then
 		kick()
 	end
 end)
@@ -3303,12 +3619,180 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 	end)
 end)
 
+-- ============================================================
+-- Gimnasio
+-- ============================================================
+local trainPanel = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -16),
+	Size = UDim2.new(0, 360, 0, 190),
+	BackgroundColor3 = COLORS.Panel,
+	BackgroundTransparency = 0.1,
+	Visible = false,
+	Parent = gui,
+}, { corner(16), stroke(Color3.new(0, 0, 0), 3) })
+local trainTitle = textLabel({
+	Position = UDim2.new(0, 12, 0, 8),
+	Size = UDim2.new(1, -24, 0, 32),
+	Text = "",
+	TextStrokeTransparency = 0,
+	Parent = trainPanel,
+})
+local trainInfo = textLabel({
+	Position = UDim2.new(0, 12, 0, 40),
+	Size = UDim2.new(1, -24, 0, 22),
+	Text = "",
+	TextColor3 = COLORS.Money,
+	Parent = trainPanel,
+})
+local trainButton = button({
+	Position = UDim2.new(0, 12, 0, 70),
+	Size = UDim2.new(1, -24, 0, 62),
+	Text = "💪 ENTRENAR (clic)",
+	Parent = trainPanel,
+}, Color3.fromRGB(255, 140, 40))
+stroke(Color3.fromRGB(150, 70, 0), 3).Parent = trainButton
+local autoButton = button({
+	Position = UDim2.new(0, 12, 0, 140),
+	Size = UDim2.new(0.5, -18, 0, 40),
+	Text = "🔁 Auto: NO",
+	Parent = trainPanel,
+}, COLORS.Gray)
+local exitButton = button({
+	AnchorPoint = Vector2.new(1, 0),
+	Position = UDim2.new(1, -12, 0, 140),
+	Size = UDim2.new(0.5, -18, 0, 40),
+	Text = "Salir (Q)",
+	Parent = trainPanel,
+}, COLORS.Red)
+
+local autoTrain = false
+local lastRep = 0
+local weightPivots: { [Model]: CFrame } = {}
+
+local function getStation(index: number): Model?
+	local map = workspace:FindFirstChild("Mapa")
+	local gymFolder = map and map:FindFirstChild("Gimnasio", true)
+	return gymFolder and gymFolder:FindFirstChild("Estacion" .. index) :: Model?
+end
+
+-- Sube y baja el peso del aparato
+local function bobWeight(index: number)
+	local station = getStation(index)
+	local peso = station and station:FindFirstChild("Peso") :: Model?
+	if not peso then
+		return
+	end
+	local original = weightPivots[peso] or peso:GetPivot()
+	weightPivots[peso] = original
+	task.spawn(function()
+		local duration = 0.35
+		local started = os.clock()
+		while true do
+			local alpha = math.min((os.clock() - started) / duration, 1)
+			peso:PivotTo(original * CFrame.new(0, math.sin(alpha * math.pi) * 1.6, 0))
+			if alpha >= 1 then
+				break
+			end
+			RunService.RenderStepped:Wait()
+		end
+	end)
+end
+
+local function stopTraining()
+	if not trainingIndex then
+		return
+	end
+	trainingIndex = nil
+	autoTrain = false
+	autoButton.Text = "🔁 Auto: NO"
+	autoButton.BackgroundColor3 = COLORS.Gray
+	trainPanel.Visible = false
+	StopTrainingEvent:FireServer()
+end
+
+local function trainRep()
+	local index = trainingIndex
+	if not index then
+		return
+	end
+	local now = os.clock()
+	if now - lastRep < Config.TRAIN_COOLDOWN then
+		return
+	end
+	lastRep = now
+	TrainEvent:FireServer()
+	local info = Config.TrainingStations[index]
+	floatText(powerGainLabel, "+" .. info.Gain .. " 💪", UDim2.new(0.5, 150, 0.55, 0))
+	bobWeight(index)
+end
+
+local function startTraining(index: number)
+	if kicking or trainingIndex == index then
+		return
+	end
+	local ok, message = StartTrainingFunction:InvokeServer(index)
+	if not ok then
+		toast(message, COLORS.Red)
+		return
+	end
+	if openWindow then
+		openWindow.Visible = false
+		openWindow = nil
+	end
+	local info = Config.TrainingStations[index]
+	trainingIndex = index
+	trainTitle.Text = "🏋️ " .. info.Name
+	trainInfo.Text = "+" .. info.Gain .. " de poder por repetición"
+	trainPanel.Visible = true
+	popIn(trainPanel)
+end
+
+trainButton.Activated:Connect(trainRep)
+exitButton.Activated:Connect(stopTraining)
+autoButton.Activated:Connect(function()
+	autoTrain = not autoTrain
+	autoButton.Text = if autoTrain then "🔁 Auto: SÍ" else "🔁 Auto: NO"
+	autoButton.BackgroundColor3 = if autoTrain then COLORS.Green else COLORS.Gray
+end)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if not trainingIndex or gameProcessed then
+		return
+	end
+	if input.KeyCode == Enum.KeyCode.Q then
+		stopTraining()
+	elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		trainRep()
+	end
+end)
+
+RunService.Heartbeat:Connect(function()
+	if autoTrain and trainingIndex then
+		trainRep()
+	end
+end)
+
+player.CharacterAdded:Connect(function()
+	if trainingIndex then
+		trainingIndex = nil
+		autoTrain = false
+		trainPanel.Visible = false
+	end
+end)
+
 -- Los puestos del lobby abren la tienda y el índice
 ProximityPromptService.PromptTriggered:Connect(function(prompt)
 	if kicking then
 		return
 	end
-	if prompt.Name == "AbrirTienda" and openWindow ~= shopWindow then
+	if prompt.Name == "Entrenar" then
+		local station = prompt:FindFirstAncestorOfClass("Model")
+		local index = station and station:GetAttribute("Index")
+		if typeof(index) == "number" then
+			startTraining(index)
+		end
+	elseif prompt.Name == "AbrirTienda" and openWindow ~= shopWindow then
 		toggleWindow(shopWindow)
 	elseif prompt.Name == "AbrirIndice" and openWindow ~= indexWindow then
 		toggleWindow(indexWindow)
@@ -3417,6 +3901,12 @@ end)
 local lastBiome = ""
 
 RunService.RenderStepped:Connect(function(dt)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	inKickZone = root ~= nil and Config.IsInKickZone(root.Position)
+	kickArea.Visible = inKickZone and not trainingIndex
+	kickHint.Visible = not inKickZone and not trainingIndex
+
 	if not kicking then
 		needleTime += dt
 		-- Onda triangular: 0 -> 1 -> 0

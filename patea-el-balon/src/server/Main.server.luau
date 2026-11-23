@@ -29,6 +29,9 @@ local KickResultEvent: RemoteEvent = remote("RemoteEvent", "KickResult")
 local AnnouncementEvent: RemoteEvent = remote("RemoteEvent", "Announcement")
 local DataUpdatedEvent: RemoteEvent = remote("RemoteEvent", "DataUpdated")
 local NotifyEvent: RemoteEvent = remote("RemoteEvent", "Notify")
+local StartTrainingFunction: RemoteFunction = remote("RemoteFunction", "StartTraining")
+local TrainEvent: RemoteEvent = remote("RemoteEvent", "Train")
+local StopTrainingEvent: RemoteEvent = remote("RemoteEvent", "StopTraining")
 local GetDataFunction: RemoteFunction = remote("RemoteFunction", "GetData")
 local PurchaseFunction: RemoteFunction = remote("RemoteFunction", "Purchase")
 
@@ -305,9 +308,23 @@ local function placeCharacterBehindBall(player: Player)
 	end
 end
 
+local function getRoot(player: Player): BasePart?
+	local character = player.Character
+	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+local function returnBehindLine(player: Player)
+	local character = player.Character
+	if character and getRoot(player) then
+		character:PivotTo(CFrame.lookAt(Config.RETURN_POSITION, Config.RETURN_POSITION + Vector3.new(0, 0, 10)))
+	end
+end
+
 local function handleKick(player: Player, timing: number)
 	local data = DataManager.Get(player)
-	if not data then
+	local root = getRoot(player)
+	-- Solo se puede patear después de cruzar la línea (con un poco de tolerancia por el lag)
+	if not data or not root or not Config.IsInKickZone(root.Position + Vector3.new(0, 0, 4)) then
 		return
 	end
 
@@ -373,6 +390,7 @@ local function handleKick(player: Player, timing: number)
 		current.BestDistance = distance
 	end
 	local squadStatus, replacedId, saleCoins = addToSquad(current, footballer)
+	returnBehindLine(player)
 
 	KickResultEvent:FireClient(player, {
 		FootballerId = footballer.Id,
@@ -419,6 +437,80 @@ end)
 Players.PlayerRemoving:Connect(function(player)
 	busy[player] = nil
 end)
+
+-- ------------------------------------------------------------
+-- Gimnasio
+-- ------------------------------------------------------------
+type TrainingState = { Index: number, LastRep: number }
+local training: { [Player]: TrainingState } = {}
+local gym = map:FindFirstChild("Gimnasio", true)
+
+local function stopTraining(player: Player)
+	if not training[player] then
+		return
+	end
+	training[player] = nil
+	local root = getRoot(player)
+	if root then
+		root.Anchored = false
+	end
+end
+
+StartTrainingFunction.OnServerInvoke = function(player: Player, index: any): (boolean, string)
+	local data = DataManager.Get(player)
+	local root = getRoot(player)
+	local info = if typeof(index) == "number" then Config.TrainingStations[index] else nil
+	local station = gym and info and gym:FindFirstChild("Estacion" .. index)
+	if not data or not root or not info or not station then
+		return false, "No puedes entrenar ahora."
+	end
+	if busy[player] then
+		return false, "¡Espera a que caiga tu balón!"
+	end
+	local stand = station:FindFirstChild("Punto") :: BasePart
+	if (root.Position - stand.Position).Magnitude > 16 then
+		return false, "Acércate más al aparato."
+	end
+	if data.Power < info.Required then
+		return false, "🔒 Necesitas " .. Config.FormatShort(info.Required) .. " de poder para " .. info.Name .. "."
+	end
+	stopTraining(player)
+	training[player] = { Index = index, LastRep = 0 }
+	root.Anchored = true
+	player.Character:PivotTo(stand.CFrame)
+	return true, info.Name
+end
+
+TrainEvent.OnServerEvent:Connect(function(player: Player)
+	local state = training[player]
+	local data = DataManager.Get(player)
+	if not state or not data then
+		return
+	end
+	local now = os.clock()
+	if now - state.LastRep < Config.TRAIN_COOLDOWN * 0.85 then
+		return -- demasiado rápido
+	end
+	state.LastRep = now
+	data.Power += Config.TrainingStations[state.Index].Gain
+	updateLeaderstats(player)
+end)
+
+StopTrainingEvent.OnServerEvent:Connect(stopTraining)
+
+Players.PlayerRemoving:Connect(function(player)
+	training[player] = nil
+end)
+
+local function watchCharacter(player: Player)
+	player.CharacterRemoving:Connect(function()
+		training[player] = nil
+	end)
+end
+Players.PlayerAdded:Connect(watchCharacter)
+for _, player in Players:GetPlayers() do
+	watchCharacter(player)
+end
 
 -- ------------------------------------------------------------
 -- Tienda y plantilla
