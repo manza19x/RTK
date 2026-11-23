@@ -214,6 +214,21 @@ function Config.GetSellPrice(f: Footballer): number
 	return f.Income * Config.SELL_SECONDS
 end
 
+-- Colores del muñeco de cada futbolista (piel amarilla clásica de Roblox)
+Config.SKIN_COLOR = Color3.fromRGB(245, 205, 48)
+Config.BOOTS_COLOR = Color3.fromRGB(25, 25, 25)
+
+function Config.GetPartColor(partName: string, f: Footballer): Color3
+	if partName == "Head" or partName:find("LowerArm") or partName:find("Hand") then
+		return Config.SKIN_COLOR
+	elseif partName:find("Foot") then
+		return Config.BOOTS_COLOR
+	elseif partName:find("UpperLeg") then
+		return f.Shorts
+	end
+	return f.Shirt -- torso, brazos y medias
+end
+
 -- ------------------------------------------------------------
 -- UTILIDADES
 -- ------------------------------------------------------------

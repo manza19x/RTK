@@ -20,6 +20,7 @@ export type PlayerData = {
 	Collection: { [string]: number }, -- cuántas veces te salió cada futbolista (Índice)
 	Squad: { string }, -- ids de los futbolistas en tu plantilla
 	Slots: number, -- espacios de la plantilla
+	Unclaimed: number, -- dinero esperando en el plato del corral
 }
 
 local function defaultData(): PlayerData
@@ -32,6 +33,7 @@ local function defaultData(): PlayerData
 		Collection = {},
 		Squad = {},
 		Slots = Config.START_SLOTS,
+		Unclaimed = 0,
 	}
 end
 

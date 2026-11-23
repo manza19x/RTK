@@ -16,6 +16,7 @@ local AnnouncementEvent = Remotes:WaitForChild("Announcement") :: RemoteEvent
 local DataUpdatedEvent = Remotes:WaitForChild("DataUpdated") :: RemoteEvent
 local GetDataFunction = Remotes:WaitForChild("GetData") :: RemoteFunction
 local PurchaseFunction = Remotes:WaitForChild("Purchase") :: RemoteFunction
+local NotifyEvent = Remotes:WaitForChild("Notify") :: RemoteEvent
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -753,21 +754,8 @@ local revealContinue = textLabel({
 	Parent = revealBox,
 })
 
-local SKIN = Color3.fromRGB(245, 205, 48)
-local BOOTS = Color3.fromRGB(25, 25, 25)
 local ANIM_WALK = "rbxassetid://507777826" -- animaciones R15 por defecto de Roblox
 local ANIM_CHEER = "rbxassetid://507770677"
-
-local function partColor(partName: string, f: Config.Footballer): Color3
-	if partName == "Head" or partName:find("LowerArm") or partName:find("Hand") then
-		return SKIN
-	elseif partName:find("Foot") then
-		return BOOTS
-	elseif partName:find("UpperLeg") then
-		return f.Shorts
-	end
-	return f.Shirt -- torso, brazos y medias
-end
 
 local function playAnimation(model: Model, id: string, looped: boolean): AnimationTrack?
 	local humanoid = model:FindFirstChildOfClass("Humanoid")
@@ -795,7 +783,7 @@ local function spawnFootballer(f: Config.Footballer, landing: Vector3): Model?
 	model.Name = f.Name
 	for _, obj in model:GetDescendants() do
 		if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" then
-			obj.Color = partColor(obj.Name, f)
+			obj.Color = Config.GetPartColor(obj.Name, f)
 		end
 	end
 
@@ -1183,6 +1171,88 @@ KickResultEvent.OnClientEvent:Connect(function(result)
 			finishKick(myKick)
 		end)
 	end)
+end)
+
+NotifyEvent.OnClientEvent:Connect(function(text: string, color: Color3?)
+	toast(text, color)
+end)
+
+-- ============================================================
+-- Futbolistas caminando dentro de los corrales
+-- (cada jugador los mueve en su propia pantalla, así se ven fluidos)
+-- ============================================================
+type Wanderer = { Pen: Model, Target: Vector3?, WaitUntil: number, Walk: AnimationTrack? }
+local wanderers: { [Model]: Wanderer } = {}
+local WALK_SPEED = 6
+
+local function addWanderer(model: Instance, pen: Model)
+	if model:IsA("Model") and not wanderers[model] then
+		wanderers[model] = { Pen = pen, Target = nil, WaitUntil = os.clock() + math.random() * 3, Walk = nil }
+	end
+end
+
+task.spawn(function()
+	local map = workspace:WaitForChild("Mapa")
+	local index = 1
+	while true do
+		local pen = map:WaitForChild("Corral" .. index, 5)
+		if not pen then
+			break
+		end
+		local folder = pen:WaitForChild("Futbolistas")
+		for _, model in folder:GetChildren() do
+			addWanderer(model, pen :: Model)
+		end
+		folder.ChildAdded:Connect(function(model)
+			addWanderer(model, pen :: Model)
+		end)
+		index += 1
+	end
+end)
+
+RunService.Heartbeat:Connect(function(dt)
+	local now = os.clock()
+	local camPos = camera.CFrame.Position
+	for model, w in wanderers do
+		if not model.Parent then
+			wanderers[model] = nil
+			continue
+		end
+		if now < w.WaitUntil then
+			continue
+		end
+		local pivot = model:GetPivot()
+		if (pivot.Position - camPos).Magnitude > 250 then
+			continue -- muy lejos, no hace falta moverlo
+		end
+		if not w.Target then
+			local center = w.Pen:GetAttribute("Center") :: Vector3
+			local size = w.Pen:GetAttribute("Size") :: Vector3
+			w.Target = Vector3.new(
+				center.X + (math.random() - 0.5) * (size.X - 8),
+				pivot.Position.Y,
+				center.Z + (math.random() - 0.5) * (size.Z - 8)
+			)
+			w.Walk = w.Walk or playAnimation(model, ANIM_WALK, true)
+			if w.Walk and not w.Walk.IsPlaying then
+				w.Walk:Play()
+			end
+		end
+		local target = w.Target :: Vector3
+		local offset = target - pivot.Position
+		local step = WALK_SPEED * dt
+		if offset.Magnitude <= step then
+			model:PivotTo(CFrame.lookAt(target, target + pivot.LookVector))
+			w.Target = nil
+			w.WaitUntil = now + 1 + math.random() * 4
+			if w.Walk then
+				w.Walk:Stop(0.2)
+			end
+		else
+			local pos = pivot.Position + offset.Unit * step
+			model:PivotTo(CFrame.lookAt(pos, pos + offset.Unit))
+		end
+	end
 end)
 
 local announcementId = 0

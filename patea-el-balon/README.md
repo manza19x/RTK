@@ -23,6 +23,7 @@ Para que **se guarde el progreso**:
 | Zonas y biomas | 30 zonas de 100 m en 6 biomas: Barrio 🏘️, Bosque 🌳, Playa 🏖️, Desierto 🌵, Nieve ❄️ y Volcán 🌋. La suerte sube mientras el balón vuela: x1,25 a 100 m, x9 a 1.000 m, x87 a 2.000 m y x807 a 3.000 m. |
 | Futbolistas | Al caer el balón se sortea uno. Llega caminando, su nombre aparece letra por letra y ves si es **¡NUEVO!** y cuánto gana por segundo. La suerte divide la dificultad: con suerte x10, "1 en 1.000" se vuelve "1 en 100". |
 | Plantilla ⚽ | Tus futbolistas te dan monedas **cada segundo**. Empiezas con 8 espacios y puedes comprar más. Si está llena, te quedas con los mejores y el peor se vende solo. También puedes vender a mano. |
+| Tu corral 🐾 | Cada jugador tiene un corral en el lobby (hay 6) con su nombre. Ahí caminan sus futbolistas. El dinero se junta en el **plato dorado** de la entrada y se cobra al pisarlo. En el **cartel de madera** presionas **E** para comprar más espacios. |
 | Tienda 🛒 | 12 balones, del Trapo (x1 de distancia) al Galáctico (x8). |
 | Índice 📖 | Los futbolistas que ya descubriste y cuántas veces te salió cada uno. |
 
@@ -46,7 +47,8 @@ Casi todo está en **`src/shared/Config.luau`** (en Studio: *ReplicatedStorage >
 ```
 src/shared/Config.luau          -> ReplicatedStorage.Shared.Config (configuración)
 src/server/Main.server.luau     -> ServerScriptService.Server.Main (patada, poder, sorteo, plantilla, tienda)
-src/server/MapBuilder.luau      -> construye el cañón, los biomas, las 30 zonas y la portería
+src/server/MapBuilder.luau      -> construye el lobby, los corrales, el cañón, los biomas y el cielo
+src/server/PlotManager.luau     -> corrales: futbolistas, plato para cobrar y cartel de mejora
 src/server/DataManager.luau     -> guarda monedas, poder, balón, plantilla e índice
 src/client/Main.client.luau     -> StarterPlayerScripts.Client.Main (interfaz, cámara y revelación)
 ```

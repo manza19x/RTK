@@ -6,6 +6,7 @@ local Debris = game:GetService("Debris")
 local Config = require(ReplicatedStorage.Shared.Config)
 local MapBuilder = require(script.Parent.MapBuilder)
 local DataManager = require(script.Parent.DataManager)
+local PlotManager = require(script.Parent.PlotManager)
 
 local rng = Random.new()
 
@@ -27,6 +28,7 @@ local BallLaunchedEvent: RemoteEvent = remote("RemoteEvent", "BallLaunched")
 local KickResultEvent: RemoteEvent = remote("RemoteEvent", "KickResult")
 local AnnouncementEvent: RemoteEvent = remote("RemoteEvent", "Announcement")
 local DataUpdatedEvent: RemoteEvent = remote("RemoteEvent", "DataUpdated")
+local NotifyEvent: RemoteEvent = remote("RemoteEvent", "Notify")
 local GetDataFunction: RemoteFunction = remote("RemoteFunction", "GetData")
 local PurchaseFunction: RemoteFunction = remote("RemoteFunction", "Purchase")
 
@@ -87,11 +89,13 @@ local function buildRigTemplate(): Model
 	return model
 end
 
-MapBuilder.Build()
+MapBuilder.SetupSky()
+local map = MapBuilder.Build()
 
 local assets = Instance.new("Folder")
 assets.Name = "Assets"
-buildRigTemplate().Parent = assets
+local rigTemplate = buildRigTemplate()
+rigTemplate.Parent = assets
 assets.Parent = ReplicatedStorage
 remotes.Parent = ReplicatedStorage
 DataManager.Start()
@@ -128,8 +132,39 @@ local function sendData(player: Player)
 	if data then
 		DataUpdatedEvent:FireClient(player, data)
 		updateLeaderstats(player)
+		PlotManager.Sync(player)
 	end
 end
+
+local function buySlot(player: Player): (boolean, string)
+	local data = DataManager.Get(player)
+	if not data then
+		return false, "Tus datos todavía están cargando."
+	end
+	if data.Slots >= Config.MAX_SLOTS then
+		return false, "¡Ya tienes el máximo de espacios!"
+	end
+	local cost = Config.GetSlotCost(data.Slots)
+	if data.Coins < cost then
+		return false, "¡No tienes suficientes monedas!"
+	end
+	data.Coins -= cost
+	data.Slots += 1
+	sendData(player)
+	return true, "🐾 ¡Plantilla ampliada a " .. data.Slots .. " espacios!"
+end
+
+PlotManager.Init(map, rigTemplate, {
+	GetData = DataManager.Get,
+	OnCollect = function(player: Player, amount: number)
+		updateLeaderstats(player)
+		NotifyEvent:FireClient(player, "💰 +" .. Config.FormatShort(amount), Color3.fromRGB(120, 255, 120))
+	end,
+	OnUpgrade = function(player: Player)
+		local ok, message = buySlot(player)
+		NotifyEvent:FireClient(player, message, if ok then Color3.fromRGB(60, 200, 90) else Color3.fromRGB(230, 70, 70))
+	end,
+})
 
 GetDataFunction.OnServerInvoke = function(player: Player)
 	-- Esperamos a que termine de cargar
@@ -151,7 +186,10 @@ local function onPlayerAdded(player: Player)
 	stats.Parent = player
 
 	DataManager.Load(player)
-	sendData(player)
+	if player.Parent then
+		PlotManager.Assign(player)
+		sendData(player)
+	end
 end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
@@ -160,14 +198,20 @@ for _, player in Players:GetPlayers() do
 	task.spawn(onPlayerAdded, player)
 end
 
--- Los futbolistas de la plantilla pagan cada segundo
+-- Los futbolistas de la plantilla pagan cada segundo. El dinero se junta en el plato
+-- del corral y se cobra pisándolo (si no hay corral libre, se cobra solo).
 task.spawn(function()
 	while true do
 		task.wait(1)
 		for _, player in Players:GetPlayers() do
 			local data = DataManager.Get(player)
 			if data then
-				data.Coins += getIncome(data)
+				if PlotManager.HasPlot(player) then
+					data.Unclaimed += getIncome(data)
+					PlotManager.Refresh(player)
+				else
+					data.Coins += getIncome(data)
+				end
 				updateLeaderstats(player)
 			end
 		end
@@ -386,17 +430,7 @@ PurchaseFunction.OnServerInvoke = function(player: Player, kind: any, arg: any):
 		sendData(player)
 		return true, "⚽ ¡Compraste el " .. ball.Name .. "!"
 	elseif kind == "Slot" then
-		if data.Slots >= Config.MAX_SLOTS then
-			return false, "¡Ya tienes el máximo de espacios!"
-		end
-		local cost = Config.GetSlotCost(data.Slots)
-		if data.Coins < cost then
-			return false, "¡No tienes suficientes monedas!"
-		end
-		data.Coins -= cost
-		data.Slots += 1
-		sendData(player)
-		return true, "🏟️ ¡Plantilla ampliada a " .. data.Slots .. " espacios!"
+		return buySlot(player)
 	elseif kind == "Sell" then
 		if typeof(arg) ~= "string" then
 			return false, "Venta inválida."
