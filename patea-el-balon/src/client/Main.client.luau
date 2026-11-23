@@ -25,6 +25,8 @@ local NotifyEvent = Remotes:WaitForChild("Notify") :: RemoteEvent
 local KickStartEvent = Remotes:WaitForChild("KickStart") :: RemoteEvent
 local SpaceKickEvent = Remotes:WaitForChild("SpaceKick") :: RemoteEvent
 local AdminFunction = Remotes:WaitForChild("Admin") :: RemoteFunction
+local LeaderboardsEvent = Remotes:WaitForChild("LeaderboardsUpdated") :: RemoteEvent
+local GetLeaderboardsFunction = Remotes:WaitForChild("GetLeaderboards") :: RemoteFunction
 local StartTrainingFunction = Remotes:WaitForChild("StartTraining") :: RemoteFunction
 local TrainEvent = Remotes:WaitForChild("Train") :: RemoteEvent
 local StopTrainingEvent = Remotes:WaitForChild("StopTraining") :: RemoteEvent
@@ -675,7 +677,7 @@ end
 local leftButtons = create("Frame", {
 	AnchorPoint = Vector2.new(0, 0.5),
 	Position = UDim2.new(0, 12, 0.45, 0),
-	Size = UDim2.new(0, 96, 0, 210),
+	Size = UDim2.new(0, 96, 0, 316),
 	BackgroundTransparency = 1,
 	Parent = hud,
 }, { create("UIListLayout", { Padding = UDim.new(0, 10) }) })
@@ -687,6 +689,7 @@ local function sideButton(parent: Instance, text: string, color: Color3): TextBu
 end
 local shopButton = sideButton(leftButtons, "🛒\nTienda", Color3.fromRGB(200, 70, 200))
 local indexButton = sideButton(leftButtons, "📖\nÍndice", Color3.fromRGB(60, 110, 230))
+local rankingButton = sideButton(leftButtons, "🏆\nRanking", Color3.fromRGB(230, 170, 30))
 
 local rightButtons = create("Frame", {
 	AnchorPoint = Vector2.new(1, 0.5),
@@ -705,6 +708,91 @@ indexButton.Activated:Connect(function()
 end)
 squadButton.Activated:Connect(function()
 	toggleWindow(squadWindow)
+end)
+
+-- ============================================================
+-- Ranking: más dinero, más poder y más ingresos (de todos los servidores)
+-- ============================================================
+local rankingWindow, rankingContent = makeWindow("🏆 Ranking", Color3.fromRGB(230, 170, 30))
+local RANKING_COLUMNS = {
+	{ Key = "Coins", Title = "💰 Dinero", Color = COLORS.Money, Suffix = "" },
+	{ Key = "Power", Title = "💪 Poder", Color = Color3.fromRGB(120, 200, 255), Suffix = "" },
+	{ Key = "Income", Title = "📈 Ingresos", Color = COLORS.Gold, Suffix = "/s" },
+}
+local rankingRows: { [string]: { { Name: TextLabel, Value: TextLabel } } } = {}
+for index, column in RANKING_COLUMNS do
+	local frame = create("Frame", {
+		Position = UDim2.new((index - 1) / 3, 4, 0, 0),
+		Size = UDim2.new(1 / 3, -8, 1, 0),
+		BackgroundColor3 = COLORS.PanelLight,
+		ZIndex = 12,
+		Parent = rankingContent,
+	}, { corner(10) })
+	textLabel({
+		Position = UDim2.new(0, 6, 0, 6),
+		Size = UDim2.new(1, -12, 0, 30),
+		Text = column.Title,
+		TextColor3 = column.Color,
+		ZIndex = 13,
+		Parent = frame,
+	})
+	local rows = {}
+	for i = 1, 10 do
+		local y = 42 + (i - 1) * 30
+		local rankColor = if i == 1 then COLORS.Gold elseif i == 2 then Color3.fromRGB(210, 215, 225) elseif i == 3 then Color3.fromRGB(220, 140, 80) else COLORS.Muted
+		textLabel({
+			Position = UDim2.new(0, 4, 0, y),
+			Size = UDim2.new(0.18, 0, 0, 24),
+			Text = "#" .. i,
+			TextColor3 = rankColor,
+			ZIndex = 13,
+			Parent = frame,
+		})
+		local nameLabel = textLabel({
+			Position = UDim2.new(0.19, 0, 0, y),
+			Size = UDim2.new(0.81, -6, 0, 13),
+			Text = "---",
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = 13,
+			Parent = frame,
+		})
+		local valueLabel = textLabel({
+			Position = UDim2.new(0.19, 0, 0, y + 12),
+			Size = UDim2.new(0.81, -6, 0, 13),
+			Text = "",
+			TextColor3 = column.Color,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = 13,
+			Parent = frame,
+		})
+		rows[i] = { Name = nameLabel, Value = valueLabel }
+	end
+	rankingRows[column.Key] = rows
+end
+
+local function showRanking(lists: any)
+	if typeof(lists) ~= "table" then
+		return
+	end
+	for _, column in RANKING_COLUMNS do
+		local list = lists[column.Key] or {}
+		for i, row in rankingRows[column.Key] do
+			local entry = list[i]
+			row.Name.Text = if entry then entry.Name else "---"
+			row.Value.Text = if entry then Config.FormatShort(entry.Value) .. column.Suffix else ""
+			row.Name.TextColor3 = if entry and entry.UserId == player.UserId then COLORS.Gold else COLORS.Text
+		end
+	end
+end
+
+LeaderboardsEvent.OnClientEvent:Connect(showRanking)
+rankingButton.Activated:Connect(function()
+	toggleWindow(rankingWindow)
+	if rankingWindow.Visible then
+		task.spawn(function()
+			showRanking(GetLeaderboardsFunction:InvokeServer())
+		end)
+	end
 end)
 
 -- ============================================================

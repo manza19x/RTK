@@ -713,6 +713,53 @@ local function buildKickLine(parent: Instance)
 	makeLabel(billboard, "⚽ Cruza la línea para patear", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(1, 1, 1))
 end
 
+-- ------------------------------------------------------------
+-- Tablas de clasificación (las llena server/Leaderboards.luau)
+-- ------------------------------------------------------------
+MapBuilder.LEADERBOARDS = {
+	{ Key = "Coins", Title = "💰 MÁS DINERO", Color = Color3.fromRGB(90, 220, 110), X = -60 },
+	{ Key = "Power", Title = "💪 MÁS PODER", Color = Color3.fromRGB(90, 170, 255), X = 0 },
+	{ Key = "Income", Title = "📈 MÁS INGRESOS", Color = Color3.fromRGB(255, 200, 60), X = 60 },
+}
+
+local function buildLeaderboard(parent: Instance, info: { [string]: any })
+	local model = Instance.new("Model")
+	model.Name = "Tabla_" .. info.Key
+	local pos = Vector3.new(info.X, 19, -252)
+	local cf = CFrame.lookAt(pos, pos + Vector3.new(0, 0, 1)) -- mira hacia el spawn
+	for _, dx in { -18, 18 } do
+		makePart({ Name = "Poste", Size = Vector3.new(1.6, 34, 1.6), CFrame = cf * CFrame.new(dx, -2, 1), Color = Color3.fromRGB(60, 60, 75), TopSurface = Enum.SurfaceType.Studs, Parent = model })
+	end
+	makePart({ Name = "Marco", Size = Vector3.new(36, 28, 0.8), CFrame = cf * CFrame.new(0, 0, 0.7), Color = info.Color, Material = Enum.Material.Neon, Parent = model })
+	local board = makePart({ Name = "Pantalla", Size = Vector3.new(34, 26, 1), CFrame = cf, Color = Color3.fromRGB(22, 24, 38), Parent = model })
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Ranking"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 25
+	gui.LightInfluence = 0
+	gui.Parent = board
+	makeLabel(gui, info.Title, UDim2.fromScale(0.94, 0.13), UDim2.fromScale(0.03, 0.02), info.Color).Name = "Titulo"
+	for i = 1, 10 do
+		local row = Instance.new("Frame")
+		row.Name = "Fila" .. i
+		row.Size = UDim2.fromScale(0.94, 0.078)
+		row.Position = UDim2.fromScale(0.03, 0.16 + (i - 1) * 0.083)
+		row.BackgroundColor3 = if i % 2 == 0 then Color3.fromRGB(40, 44, 64) else Color3.fromRGB(32, 35, 52)
+		row.BorderSizePixel = 0
+		row.Parent = gui
+		local rankColor = if i == 1 then Color3.fromRGB(255, 210, 60) elseif i == 2 then Color3.fromRGB(210, 215, 225) elseif i == 3 then Color3.fromRGB(220, 140, 80) else Color3.new(1, 1, 1)
+		makeLabel(row, "#" .. i, UDim2.fromScale(0.14, 0.9), UDim2.fromScale(0.01, 0.05), rankColor).Name = "Puesto"
+		local name = makeLabel(row, "---", UDim2.fromScale(0.54, 0.9), UDim2.fromScale(0.16, 0.05), Color3.new(1, 1, 1))
+		name.Name = "Nombre"
+		name.TextXAlignment = Enum.TextXAlignment.Left
+		local value = makeLabel(row, "", UDim2.fromScale(0.28, 0.9), UDim2.fromScale(0.71, 0.05), info.Color)
+		value.Name = "Valor"
+		value.TextXAlignment = Enum.TextXAlignment.Right
+	end
+	model.Parent = parent
+end
+
 local function decorateLobby(lobby: Instance, rng: Random)
 	-- Camino de baldosas naranjas y amarillas del spawn al punto de patada
 	local tile = 12
@@ -746,8 +793,14 @@ local function decorateLobby(lobby: Instance, rng: Random)
 			buildBush(lobby, Vector3.new(x, 0, z), rng)
 		end
 	end
-	for _, x in { -60, -82, 60, 82 } do
+	for _, x in { -90, 90 } do
 		buildBush(lobby, Vector3.new(x, 0, -254), rng)
+	end
+	local boards = Instance.new("Folder")
+	boards.Name = "Clasificaciones"
+	boards.Parent = lobby
+	for _, info in MapBuilder.LEADERBOARDS do
+		buildLeaderboard(boards, info)
 	end
 end
 

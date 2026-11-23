@@ -9,6 +9,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local MapBuilder = require(script.Parent.MapBuilder)
 local DataManager = require(script.Parent.DataManager)
 local PlotManager = require(script.Parent.PlotManager)
+local Leaderboards = require(script.Parent.Leaderboards)
 
 local rng = Random.new()
 
@@ -34,6 +35,8 @@ local NotifyEvent: RemoteEvent = remote("RemoteEvent", "Notify")
 local KickStartEvent: RemoteEvent = remote("RemoteEvent", "KickStart")
 local SpaceKickEvent: RemoteEvent = remote("RemoteEvent", "SpaceKick")
 local AdminFunction: RemoteFunction = remote("RemoteFunction", "Admin")
+local LeaderboardsEvent: RemoteEvent = remote("RemoteEvent", "LeaderboardsUpdated")
+local GetLeaderboardsFunction: RemoteFunction = remote("RemoteFunction", "GetLeaderboards")
 local StartTrainingFunction: RemoteFunction = remote("RemoteFunction", "StartTraining")
 local TrainEvent: RemoteEvent = remote("RemoteEvent", "Train")
 local StopTrainingEvent: RemoteEvent = remote("RemoteEvent", "StopTraining")
@@ -267,6 +270,18 @@ Players.PlayerAdded:Connect(onPlayerAdded)
 -- Por si alguien entró antes de que corriera este script
 for _, player in Players:GetPlayers() do
 	task.spawn(onPlayerAdded, player)
+end
+
+-- Tablas de clasificación: dinero (incluye lo que está en el plato), poder e ingresos
+Leaderboards.Start(map, function(player: Player)
+	local data = DataManager.Get(player)
+	if not data then
+		return nil
+	end
+	return { Coins = data.Coins + data.Unclaimed, Power = data.Power, Income = getIncome(data) }
+end, LeaderboardsEvent)
+GetLeaderboardsFunction.OnServerInvoke = function()
+	return Leaderboards.GetLatest()
 end
 
 -- Los futbolistas de la plantilla pagan cada segundo. El dinero se junta en el plato

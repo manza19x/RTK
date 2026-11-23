@@ -1,7 +1,7 @@
 # ⚽ Patea el Balón (juego de Roblox)
 
 Patea el balón a través de 30 zonas, cada una con su propio escenario a los lados. Mientras más lejos cae, más **suerte** tienes.
-Donde cae el balón llega caminando un **futbolista**. Los raros (como Messi, 1 en 250.000) solo salen con mucha suerte.
+Donde cae el balón llega corriendo uno de **40 futbolistas**. Los raros (como Messi, 1 en 250.000, o Ronaldo Nazário, 1 en 2.000.000) solo salen con mucha suerte.
 Cada patada **entrena tu poder**, y los futbolistas de tu **plantilla** te dan monedas cada segundo.
 
 ## Cómo jugarlo en Roblox Studio (la forma fácil)
@@ -28,6 +28,7 @@ Para que **se guarde el progreso**:
 | Plantilla ⚽ | Tus futbolistas te dan monedas **cada segundo**. Empiezas con 8 espacios y puedes comprar más. Si está llena, te quedas con los mejores y el peor se vende solo. También puedes vender a mano. |
 | Tu corral 🐾 | Cada jugador tiene un corral en el lobby (hay 6) con su nombre. Ahí sus futbolistas caminan, hacen dominadas, saludan, bailan, festejan y estiran. El dinero se junta en el **plato dorado** de la entrada y se cobra al pisarlo. En el **cartel de madera** presionas **E** para comprar más espacios. |
 | Tienda 🛒 | 12 balones, del Trapo (x1 de distancia) al Galáctico (x8). Se abre con el botón o en el puesto rojo del lobby (tecla **E**). El puesto azul abre el Índice. |
+| Ranking 🏆 | **Top 10 de todos los servidores** en 💰 más dinero, 💪 más poder y 📈 más ingresos por segundo. Está en tres tableros grandes al fondo del lobby (detrás del gimnasio) y en el botón **🏆 Ranking**. Se actualiza cada 45 segundos. Si el juego no tiene acceso a DataStores (por ejemplo en Studio sin "API Services"), muestra el ranking del servidor actual. |
 | Índice 📖 | Los futbolistas que ya descubriste y cuántas veces te salió cada uno. |
 
 Según una simulación (pateando y entrenando), se llega a la zona 10 en unos 47 minutos, a la 20 en unos 80 y a la 30 en 1 hora 40. Si solo pateas sin entrenar, es mucho más lento.
@@ -72,6 +73,7 @@ src/server/Main.server.luau     -> ServerScriptService.Server.Main (patada, pode
 src/server/MapBuilder.luau      -> construye el lobby, los corrales, el gimnasio, el campo y el cielo
 src/server/Scenery.luau         -> los 30 escenarios de los lados (barrios, ciudad, playa, estadios...)
 src/server/PlotManager.luau     -> corrales: futbolistas, plato para cobrar y cartel de mejora
+src/server/Leaderboards.luau    -> tablas de clasificación globales (dinero, poder, ingresos)
 src/server/DataManager.luau     -> guarda monedas, poder, balón, plantilla e índice
 src/client/Main.client.luau     -> StarterPlayerScripts.Client.Main (interfaz, cámara, revelación y panel de admin)
 src/client/KickAnimation.luau   -> animaciones de agarrar el balón, patear y la chilena

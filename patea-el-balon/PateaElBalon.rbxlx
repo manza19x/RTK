@@ -289,24 +289,46 @@ export type Footballer = {
 
 -- El primero (Chance = 1) es el que sale si no te toca ninguno más raro.
 Config.Footballers = {
-	{ Id = "canterano", Name = "Canterano", Chance = 1, Rarity = "Comun", Income = 1, Shirt = Color3.fromRGB(230, 230, 230), Shorts = Color3.fromRGB(40, 40, 40) },
-	{ Id = "gavi", Name = "Gavi", Chance = 4, Rarity = "Comun", Income = 3, Shirt = Color3.fromRGB(165, 0, 68), Shorts = Color3.fromRGB(0, 77, 152) },
-	{ Id = "kounde", Name = "Koundé", Chance = 6, Rarity = "Comun", Income = 4, Shirt = Color3.fromRGB(165, 0, 68), Shorts = Color3.fromRGB(0, 77, 152) },
-	{ Id = "valverde", Name = "Fede Valverde", Chance = 10, Rarity = "PocoComun", Income = 5, Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
-	{ Id = "rodri", Name = "Rodri", Chance = 15, Rarity = "PocoComun", Income = 7, Shirt = Color3.fromRGB(108, 171, 221), Shorts = Color3.fromRGB(250, 250, 250) },
-	{ Id = "pedri", Name = "Pedri", Chance = 25, Rarity = "Raro", Income = 10, Shirt = Color3.fromRGB(165, 0, 68), Shorts = Color3.fromRGB(0, 77, 152) },
-	{ Id = "rodrygo", Name = "Rodrygo", Chance = 40, Rarity = "Raro", Income = 13, Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
-	{ Id = "saka", Name = "Saka", Chance = 60, Rarity = "Raro", Income = 18, Shirt = Color3.fromRGB(220, 0, 0), Shorts = Color3.fromRGB(250, 250, 250) },
-	{ Id = "musiala", Name = "Musiala", Chance = 150, Rarity = "Epico", Income = 33, Shirt = Color3.fromRGB(220, 5, 45), Shorts = Color3.fromRGB(220, 5, 45) },
-	{ Id = "wirtz", Name = "Wirtz", Chance = 250, Rarity = "Epico", Income = 48, Shirt = Color3.fromRGB(200, 16, 46), Shorts = Color3.fromRGB(250, 250, 250) },
-	{ Id = "yamal", Name = "Lamine Yamal", Chance = 500, Rarity = "Epico", Income = 78, Shirt = Color3.fromRGB(165, 0, 68), Shorts = Color3.fromRGB(0, 77, 152) },
-	{ Id = "bellingham", Name = "Bellingham", Chance = 1000, Rarity = "Legendario", Income = 126, Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
-	{ Id = "vinicius", Name = "Vinícius Jr", Chance = 2500, Rarity = "Legendario", Income = 238, Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
-	{ Id = "salah", Name = "Salah", Chance = 5000, Rarity = "Legendario", Income = 387, Shirt = Color3.fromRGB(200, 16, 46), Shorts = Color3.fromRGB(200, 16, 46) },
-	{ Id = "mbappe", Name = "Mbappé", Chance = 15000, Rarity = "Mitico", Income = 834, Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
-	{ Id = "haaland", Name = "Haaland", Chance = 40000, Rarity = "Mitico", Income = 1650, Shirt = Color3.fromRGB(108, 171, 221), Shorts = Color3.fromRGB(250, 250, 250) },
-	{ Id = "messi", Name = "Messi", Chance = 250000, Rarity = "Secreto", Income = 6000, Shirt = Color3.fromRGB(245, 140, 170), Shorts = Color3.fromRGB(20, 20, 20) },
-	{ Id = "cristiano", Name = "Cristiano Ronaldo", Chance = 1000000, Rarity = "Secreto", Income = 15000, Shirt = Color3.fromRGB(20, 120, 60), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "canterano", Name = "Canterano", Chance = 1, Rarity = "Comun", Income = 1, Shirt = rgb(230, 230, 230), Shorts = rgb(40, 40, 40) },
+	{ Id = "gavi", Name = "Gavi", Chance = 4, Rarity = "Comun", Income = 3, Shirt = rgb(165, 0, 68), Shorts = rgb(0, 77, 152) },
+	{ Id = "araujo", Name = "Araujo", Chance = 5, Rarity = "Comun", Income = 3, Shirt = rgb(165, 0, 68), Shorts = rgb(0, 77, 152) },
+	{ Id = "kounde", Name = "Koundé", Chance = 6, Rarity = "Comun", Income = 4, Shirt = rgb(165, 0, 68), Shorts = rgb(0, 77, 152) },
+	{ Id = "tchouameni", Name = "Tchouaméni", Chance = 7, Rarity = "Comun", Income = 4, Shirt = rgb(250, 250, 250), Shorts = rgb(250, 250, 250) },
+	{ Id = "camavinga", Name = "Camavinga", Chance = 9, Rarity = "PocoComun", Income = 5, Shirt = rgb(250, 250, 250), Shorts = rgb(250, 250, 250) },
+	{ Id = "valverde", Name = "Fede Valverde", Chance = 10, Rarity = "PocoComun", Income = 5, Shirt = rgb(250, 250, 250), Shorts = rgb(250, 250, 250) },
+	{ Id = "dejong", Name = "De Jong", Chance = 12, Rarity = "PocoComun", Income = 6, Shirt = rgb(165, 0, 68), Shorts = rgb(0, 77, 152) },
+	{ Id = "rodri", Name = "Rodri", Chance = 15, Rarity = "PocoComun", Income = 7, Shirt = rgb(108, 171, 221), Shorts = rgb(250, 250, 250) },
+	{ Id = "odegaard", Name = "Ødegaard", Chance = 18, Rarity = "PocoComun", Income = 8, Shirt = rgb(220, 0, 0), Shorts = rgb(250, 250, 250) },
+	{ Id = "rice", Name = "Rice", Chance = 20, Rarity = "PocoComun", Income = 8, Shirt = rgb(220, 0, 0), Shorts = rgb(250, 250, 250) },
+	{ Id = "pedri", Name = "Pedri", Chance = 25, Rarity = "Raro", Income = 10, Shirt = rgb(165, 0, 68), Shorts = rgb(0, 77, 152) },
+	{ Id = "foden", Name = "Foden", Chance = 30, Rarity = "Raro", Income = 11, Shirt = rgb(108, 171, 221), Shorts = rgb(250, 250, 250) },
+	{ Id = "rodrygo", Name = "Rodrygo", Chance = 40, Rarity = "Raro", Income = 13, Shirt = rgb(250, 250, 250), Shorts = rgb(250, 250, 250) },
+	{ Id = "raphinha", Name = "Raphinha", Chance = 50, Rarity = "Raro", Income = 15, Shirt = rgb(165, 0, 68), Shorts = rgb(0, 77, 152) },
+	{ Id = "saka", Name = "Saka", Chance = 60, Rarity = "Raro", Income = 18, Shirt = rgb(220, 0, 0), Shorts = rgb(250, 250, 250) },
+	{ Id = "kane", Name = "Kane", Chance = 80, Rarity = "Raro", Income = 21, Shirt = rgb(220, 5, 45), Shorts = rgb(220, 5, 45) },
+	{ Id = "lewandowski", Name = "Lewandowski", Chance = 100, Rarity = "Raro", Income = 25, Shirt = rgb(165, 0, 68), Shorts = rgb(0, 77, 152) },
+	{ Id = "bruno", Name = "Bruno Fernandes", Chance = 120, Rarity = "Raro", Income = 28, Shirt = rgb(200, 16, 46), Shorts = rgb(250, 250, 250) },
+	{ Id = "musiala", Name = "Musiala", Chance = 150, Rarity = "Epico", Income = 33, Shirt = rgb(220, 5, 45), Shorts = rgb(220, 5, 45) },
+	{ Id = "debruyne", Name = "De Bruyne", Chance = 200, Rarity = "Epico", Income = 41, Shirt = rgb(108, 171, 221), Shorts = rgb(250, 250, 250) },
+	{ Id = "wirtz", Name = "Wirtz", Chance = 250, Rarity = "Epico", Income = 48, Shirt = rgb(200, 16, 46), Shorts = rgb(250, 250, 250) },
+	{ Id = "dembele", Name = "Dembélé", Chance = 350, Rarity = "Epico", Income = 60, Shirt = rgb(10, 30, 80), Shorts = rgb(10, 30, 80) },
+	{ Id = "yamal", Name = "Lamine Yamal", Chance = 500, Rarity = "Epico", Income = 78, Shirt = rgb(165, 0, 68), Shorts = rgb(0, 77, 152) },
+	{ Id = "kvara", Name = "Kvaratskhelia", Chance = 700, Rarity = "Epico", Income = 98, Shirt = rgb(10, 30, 80), Shorts = rgb(10, 30, 80) },
+	{ Id = "bellingham", Name = "Bellingham", Chance = 1000, Rarity = "Legendario", Income = 126, Shirt = rgb(250, 250, 250), Shorts = rgb(250, 250, 250) },
+	{ Id = "modric", Name = "Modrić", Chance = 1500, Rarity = "Legendario", Income = 166, Shirt = rgb(250, 250, 250), Shorts = rgb(250, 250, 250) },
+	{ Id = "vinicius", Name = "Vinícius Jr", Chance = 2500, Rarity = "Legendario", Income = 238, Shirt = rgb(250, 250, 250), Shorts = rgb(250, 250, 250) },
+	{ Id = "neymar", Name = "Neymar", Chance = 3500, Rarity = "Legendario", Income = 303, Shirt = rgb(250, 220, 40), Shorts = rgb(30, 80, 200) },
+	{ Id = "salah", Name = "Salah", Chance = 5000, Rarity = "Legendario", Income = 387, Shirt = rgb(200, 16, 46), Shorts = rgb(200, 16, 46) },
+	{ Id = "lautaro", Name = "Lautaro", Chance = 8000, Rarity = "Legendario", Income = 540, Shirt = rgb(0, 60, 150), Shorts = rgb(20, 20, 20) },
+	{ Id = "mbappe", Name = "Mbappé", Chance = 15000, Rarity = "Mitico", Income = 834, Shirt = rgb(250, 250, 250), Shorts = rgb(250, 250, 250) },
+	{ Id = "ronaldinho", Name = "Ronaldinho", Chance = 25000, Rarity = "Mitico", Income = 1200, Shirt = rgb(165, 0, 68), Shorts = rgb(0, 77, 152) },
+	{ Id = "haaland", Name = "Haaland", Chance = 40000, Rarity = "Mitico", Income = 1650, Shirt = rgb(108, 171, 221), Shorts = rgb(250, 250, 250) },
+	{ Id = "zidane", Name = "Zidane", Chance = 80000, Rarity = "Mitico", Income = 2700, Shirt = rgb(250, 250, 250), Shorts = rgb(250, 250, 250) },
+	{ Id = "maradona", Name = "Maradona", Chance = 120000, Rarity = "Secreto", Income = 3600, Shirt = rgb(108, 171, 221), Shorts = rgb(20, 20, 20) },
+	{ Id = "messi", Name = "Messi", Chance = 250000, Rarity = "Secreto", Income = 6000, Shirt = rgb(245, 140, 170), Shorts = rgb(20, 20, 20) },
+	{ Id = "pele", Name = "Pelé", Chance = 500000, Rarity = "Secreto", Income = 9800, Shirt = rgb(250, 220, 40), Shorts = rgb(30, 80, 200) },
+	{ Id = "cristiano", Name = "Cristiano Ronaldo", Chance = 1000000, Rarity = "Secreto", Income = 15000, Shirt = rgb(20, 120, 60), Shorts = rgb(250, 250, 250) },
+	{ Id = "nazario", Name = "Ronaldo Nazário", Chance = 2000000, Rarity = "Secreto", Income = 25000, Shirt = rgb(250, 220, 40), Shorts = rgb(30, 80, 200) },
 } :: { Footballer }
 
 -- Número de camiseta y peinado de cada futbolista
@@ -314,22 +336,44 @@ local BROWN, BLACK, BLONDE, LIGHT_BROWN = rgb(70, 45, 30), rgb(30, 25, 25), rgb(
 local looks = {
 	canterano = { 22, "Corto", LIGHT_BROWN },
 	gavi = { 6, "Corto", BLACK },
+	araujo = { 4, "Rapado", BLACK },
 	kounde = { 23, "Rapado", BLACK },
+	tchouameni = { 14, "Rapado", BLACK },
+	camavinga = { 6, "Rapado", BLACK },
 	valverde = { 8, "Corto", BROWN },
+	dejong = { 21, "Corto", BLONDE },
 	rodri = { 16, "Corto", BROWN },
+	odegaard = { 8, "Corto", LIGHT_BROWN },
+	rice = { 41, "Corto", BROWN },
 	pedri = { 8, "Corto", BLACK },
+	foden = { 47, "Rapado", BROWN },
 	rodrygo = { 11, "Corto", BLACK },
+	raphinha = { 11, "Largo", BLACK },
 	saka = { 7, "Rapado", BLACK },
+	kane = { 9, "Corto", LIGHT_BROWN },
+	lewandowski = { 9, "Corto", BROWN },
+	bruno = { 8, "Corto", BROWN },
 	musiala = { 10, "Corto", BROWN },
+	debruyne = { 17, "Corto", BLONDE },
 	wirtz = { 10, "Corto", LIGHT_BROWN },
+	dembele = { 10, "Rapado", BLACK },
 	yamal = { 19, "Cresta", BLACK },
+	kvara = { 7, "Largo", BROWN },
 	bellingham = { 5, "Rapado", BLACK },
+	modric = { 10, "Largo", LIGHT_BROWN },
 	vinicius = { 7, "Largo", BLACK },
+	neymar = { 10, "Cresta", BLACK },
 	salah = { 11, "Largo", BLACK },
+	lautaro = { 10, "Corto", BLACK },
 	mbappe = { 10, "Rapado", BLACK },
+	ronaldinho = { 10, "Largo", BLACK },
 	haaland = { 9, "Largo", BLONDE },
+	zidane = { 5, "Rapado", BROWN },
+	maradona = { 10, "Largo", BLACK },
 	messi = { 10, "Corto", BROWN },
+	pele = { 10, "Corto", BLACK },
 	cristiano = { 7, "Cresta", BROWN },
+	nazario = { 9, "Rapado", BLACK },
 }
 for _, f in Config.Footballers do
 	local look = looks[f.Id]
@@ -806,7 +850,158 @@ return DataManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="8">
+      <Item class="ModuleScript" referent="8">
+        <Properties>
+          <string name="Name">Leaderboards</string>
+          <string name="Source"><![CDATA[-- Tablas de clasificación globales (de todos los servidores): más dinero, más poder
+-- y más ingresos por segundo. Se guardan en OrderedDataStores. Si no hay acceso
+-- (por ejemplo en Studio sin "API Services"), se muestra el ranking de este servidor.
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local Leaderboards = {}
+
+local REFRESH_SECONDS = 45
+local CATEGORIES = {
+	{ Key = "Coins", Store = "TopMonedas_v1", Suffix = "" },
+	{ Key = "Power", Store = "TopPoder_v1", Suffix = "" },
+	{ Key = "Income", Store = "TopIngresos_v1", Suffix = "/s" },
+}
+
+export type Stats = { Coins: number, Power: number, Income: number }
+export type Entry = { Name: string, Value: number, UserId: number }
+
+local stores: { [string]: OrderedDataStore } = {}
+for _, category in CATEGORIES do
+	local ok, store = pcall(function()
+		return DataStoreService:GetOrderedDataStore(category.Store)
+	end)
+	if ok then
+		stores[category.Key] = store
+	end
+end
+
+local names: { [number]: string } = {}
+local latest: { [string]: { Entry } } = { Coins = {}, Power = {}, Income = {} }
+
+local function getName(userId: number): string
+	local player = Players:GetPlayerByUserId(userId)
+	if player then
+		return player.DisplayName
+	end
+	if names[userId] then
+		return names[userId]
+	end
+	local ok, name = pcall(function()
+		return Players:GetNameFromUserIdAsync(userId)
+	end)
+	names[userId] = if ok and name then name else "Jugador"
+	return names[userId]
+end
+
+local function saveStats(getStats: (Player) -> Stats?)
+	for _, player in Players:GetPlayers() do
+		local stats = getStats(player)
+		if stats then
+			for _, category in CATEGORIES do
+				local store = stores[category.Key]
+				local value = math.floor(math.clamp((stats :: any)[category.Key] or 0, 0, 2 ^ 53))
+				if store then
+					pcall(function()
+						store:SetAsync("u_" .. player.UserId, value)
+					end)
+				end
+			end
+		end
+	end
+end
+
+local function fetchGlobal(key: string): { Entry }?
+	local store = stores[key]
+	if not store then
+		return nil
+	end
+	local ok, page = pcall(function()
+		return store:GetSortedAsync(false, 10):GetCurrentPage()
+	end)
+	if not ok then
+		return nil
+	end
+	local list = {}
+	for _, item in page do
+		local userId = tonumber(string.sub(item.key, 3)) or 0
+		table.insert(list, { Name = getName(userId), Value = item.value, UserId = userId })
+	end
+	return list
+end
+
+-- Ranking solo con los jugadores de este servidor
+local function fetchLocal(key: string, getStats: (Player) -> Stats?): { Entry }
+	local list = {}
+	for _, player in Players:GetPlayers() do
+		local stats = getStats(player)
+		if stats then
+			table.insert(list, { Name = player.DisplayName, Value = (stats :: any)[key] or 0, UserId = player.UserId })
+		end
+	end
+	table.sort(list, function(a, b)
+		return a.Value > b.Value
+	end)
+	while #list > 10 do
+		table.remove(list)
+	end
+	return list
+end
+
+local function updateBoards(map: Instance)
+	local folder = map:FindFirstChild("Clasificaciones", true)
+	if not folder then
+		return
+	end
+	for _, category in CATEGORIES do
+		local board = folder:FindFirstChild("Tabla_" .. category.Key)
+		local gui = board and board:FindFirstChild("Ranking", true)
+		if gui then
+			local list = latest[category.Key]
+			for i = 1, 10 do
+				local row: any = gui:FindFirstChild("Fila" .. i)
+				if row then
+					local entry = list[i]
+					row.Nombre.Text = if entry then entry.Name else "---"
+					row.Valor.Text = if entry then Config.FormatShort(entry.Value) .. category.Suffix else ""
+				end
+			end
+		end
+	end
+end
+
+function Leaderboards.GetLatest(): { [string]: { Entry } }
+	return latest
+end
+
+function Leaderboards.Start(map: Instance, getStats: (Player) -> Stats?, updatedEvent: RemoteEvent)
+	task.spawn(function()
+		task.wait(8) -- dejamos que carguen los datos de los jugadores
+		while true do
+			saveStats(getStats)
+			for _, category in CATEGORIES do
+				latest[category.Key] = fetchGlobal(category.Key) or fetchLocal(category.Key, getStats)
+			end
+			updateBoards(map)
+			updatedEvent:FireAllClients(latest)
+			task.wait(REFRESH_SECONDS)
+		end
+	end)
+end
+
+return Leaderboards
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="9">
         <Properties>
           <string name="Name">Main</string>
           <token name="RunContext">0</token>
@@ -821,6 +1016,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local MapBuilder = require(script.Parent.MapBuilder)
 local DataManager = require(script.Parent.DataManager)
 local PlotManager = require(script.Parent.PlotManager)
+local Leaderboards = require(script.Parent.Leaderboards)
 
 local rng = Random.new()
 
@@ -846,6 +1042,8 @@ local NotifyEvent: RemoteEvent = remote("RemoteEvent", "Notify")
 local KickStartEvent: RemoteEvent = remote("RemoteEvent", "KickStart")
 local SpaceKickEvent: RemoteEvent = remote("RemoteEvent", "SpaceKick")
 local AdminFunction: RemoteFunction = remote("RemoteFunction", "Admin")
+local LeaderboardsEvent: RemoteEvent = remote("RemoteEvent", "LeaderboardsUpdated")
+local GetLeaderboardsFunction: RemoteFunction = remote("RemoteFunction", "GetLeaderboards")
 local StartTrainingFunction: RemoteFunction = remote("RemoteFunction", "StartTraining")
 local TrainEvent: RemoteEvent = remote("RemoteEvent", "Train")
 local StopTrainingEvent: RemoteEvent = remote("RemoteEvent", "StopTraining")
@@ -1079,6 +1277,18 @@ Players.PlayerAdded:Connect(onPlayerAdded)
 -- Por si alguien entró antes de que corriera este script
 for _, player in Players:GetPlayers() do
 	task.spawn(onPlayerAdded, player)
+end
+
+-- Tablas de clasificación: dinero (incluye lo que está en el plato), poder e ingresos
+Leaderboards.Start(map, function(player: Player)
+	local data = DataManager.Get(player)
+	if not data then
+		return nil
+	end
+	return { Coins = data.Coins + data.Unclaimed, Power = data.Power, Income = getIncome(data) }
+end, LeaderboardsEvent)
+GetLeaderboardsFunction.OnServerInvoke = function()
+	return Leaderboards.GetLatest()
 end
 
 -- Los futbolistas de la plantilla pagan cada segundo. El dinero se junta en el plato
@@ -1582,7 +1792,7 @@ end
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="9">
+      <Item class="ModuleScript" referent="10">
         <Properties>
           <string name="Name">MapBuilder</string>
           <string name="Source"><![CDATA[-- Construye el mapa: lobby, punto de patada y un cañón de 30 zonas dividido en biomas.
@@ -2300,6 +2510,53 @@ local function buildKickLine(parent: Instance)
 	makeLabel(billboard, "⚽ Cruza la línea para patear", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.new(1, 1, 1))
 end
 
+-- ------------------------------------------------------------
+-- Tablas de clasificación (las llena server/Leaderboards.luau)
+-- ------------------------------------------------------------
+MapBuilder.LEADERBOARDS = {
+	{ Key = "Coins", Title = "💰 MÁS DINERO", Color = Color3.fromRGB(90, 220, 110), X = -60 },
+	{ Key = "Power", Title = "💪 MÁS PODER", Color = Color3.fromRGB(90, 170, 255), X = 0 },
+	{ Key = "Income", Title = "📈 MÁS INGRESOS", Color = Color3.fromRGB(255, 200, 60), X = 60 },
+}
+
+local function buildLeaderboard(parent: Instance, info: { [string]: any })
+	local model = Instance.new("Model")
+	model.Name = "Tabla_" .. info.Key
+	local pos = Vector3.new(info.X, 19, -252)
+	local cf = CFrame.lookAt(pos, pos + Vector3.new(0, 0, 1)) -- mira hacia el spawn
+	for _, dx in { -18, 18 } do
+		makePart({ Name = "Poste", Size = Vector3.new(1.6, 34, 1.6), CFrame = cf * CFrame.new(dx, -2, 1), Color = Color3.fromRGB(60, 60, 75), TopSurface = Enum.SurfaceType.Studs, Parent = model })
+	end
+	makePart({ Name = "Marco", Size = Vector3.new(36, 28, 0.8), CFrame = cf * CFrame.new(0, 0, 0.7), Color = info.Color, Material = Enum.Material.Neon, Parent = model })
+	local board = makePart({ Name = "Pantalla", Size = Vector3.new(34, 26, 1), CFrame = cf, Color = Color3.fromRGB(22, 24, 38), Parent = model })
+	local gui = Instance.new("SurfaceGui")
+	gui.Name = "Ranking"
+	gui.Face = Enum.NormalId.Front
+	gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+	gui.PixelsPerStud = 25
+	gui.LightInfluence = 0
+	gui.Parent = board
+	makeLabel(gui, info.Title, UDim2.fromScale(0.94, 0.13), UDim2.fromScale(0.03, 0.02), info.Color).Name = "Titulo"
+	for i = 1, 10 do
+		local row = Instance.new("Frame")
+		row.Name = "Fila" .. i
+		row.Size = UDim2.fromScale(0.94, 0.078)
+		row.Position = UDim2.fromScale(0.03, 0.16 + (i - 1) * 0.083)
+		row.BackgroundColor3 = if i % 2 == 0 then Color3.fromRGB(40, 44, 64) else Color3.fromRGB(32, 35, 52)
+		row.BorderSizePixel = 0
+		row.Parent = gui
+		local rankColor = if i == 1 then Color3.fromRGB(255, 210, 60) elseif i == 2 then Color3.fromRGB(210, 215, 225) elseif i == 3 then Color3.fromRGB(220, 140, 80) else Color3.new(1, 1, 1)
+		makeLabel(row, "#" .. i, UDim2.fromScale(0.14, 0.9), UDim2.fromScale(0.01, 0.05), rankColor).Name = "Puesto"
+		local name = makeLabel(row, "---", UDim2.fromScale(0.54, 0.9), UDim2.fromScale(0.16, 0.05), Color3.new(1, 1, 1))
+		name.Name = "Nombre"
+		name.TextXAlignment = Enum.TextXAlignment.Left
+		local value = makeLabel(row, "", UDim2.fromScale(0.28, 0.9), UDim2.fromScale(0.71, 0.05), info.Color)
+		value.Name = "Valor"
+		value.TextXAlignment = Enum.TextXAlignment.Right
+	end
+	model.Parent = parent
+end
+
 local function decorateLobby(lobby: Instance, rng: Random)
 	-- Camino de baldosas naranjas y amarillas del spawn al punto de patada
 	local tile = 12
@@ -2333,8 +2590,14 @@ local function decorateLobby(lobby: Instance, rng: Random)
 			buildBush(lobby, Vector3.new(x, 0, z), rng)
 		end
 	end
-	for _, x in { -60, -82, 60, 82 } do
+	for _, x in { -90, 90 } do
 		buildBush(lobby, Vector3.new(x, 0, -254), rng)
+	end
+	local boards = Instance.new("Folder")
+	boards.Name = "Clasificaciones"
+	boards.Parent = lobby
+	for _, info in MapBuilder.LEADERBOARDS do
+		buildLeaderboard(boards, info)
 	end
 end
 
@@ -2601,7 +2864,7 @@ return MapBuilder
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="10">
+      <Item class="ModuleScript" referent="11">
         <Properties>
           <string name="Name">PlotManager</string>
           <string name="Source"><![CDATA[-- Corrales: cada jugador recibe uno. Ahí caminan sus futbolistas, se junta el dinero
@@ -2832,7 +3095,7 @@ return PlotManager
 ]]></string>
         </Properties>
       </Item>
-      <Item class="ModuleScript" referent="11">
+      <Item class="ModuleScript" referent="12">
         <Properties>
           <string name="Name">Scenery</string>
           <string name="Source"><![CDATA[-- Escenarios a los lados del campo. Cada zona tiene el suyo (ver Config.Zones)
@@ -3780,20 +4043,20 @@ return Scenery
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="12">
+  <Item class="StarterPlayer" referent="13">
     <Properties>
       <string name="Name">StarterPlayer</string>
       <token name="GameSettingsAvatar">1</token>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="13">
+    <Item class="StarterPlayerScripts" referent="14">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="14">
+      <Item class="Folder" referent="15">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="ModuleScript" referent="15">
+        <Item class="ModuleScript" referent="16">
           <Properties>
             <string name="Name">FootballerMoves</string>
             <string name="Source"><![CDATA[-- Movimientos de los futbolistas: correr, caminar, dominadas con el balón,
@@ -3994,7 +4257,7 @@ return Moves
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="16">
+        <Item class="ModuleScript" referent="17">
           <Properties>
             <string name="Name">KickAnimation</string>
             <string name="Source"><![CDATA[-- Animaciones de la patada hechas con código (sin subir animaciones a Roblox):
@@ -4234,7 +4497,7 @@ return KickAnimation
 ]]></string>
           </Properties>
         </Item>
-        <Item class="LocalScript" referent="17">
+        <Item class="LocalScript" referent="18">
           <Properties>
             <string name="Name">Main</string>
             <string name="Source"><![CDATA[-- Interfaz del jugador: barra de poder, patada, cámara, revelación del futbolista,
@@ -4264,6 +4527,8 @@ local NotifyEvent = Remotes:WaitForChild("Notify") :: RemoteEvent
 local KickStartEvent = Remotes:WaitForChild("KickStart") :: RemoteEvent
 local SpaceKickEvent = Remotes:WaitForChild("SpaceKick") :: RemoteEvent
 local AdminFunction = Remotes:WaitForChild("Admin") :: RemoteFunction
+local LeaderboardsEvent = Remotes:WaitForChild("LeaderboardsUpdated") :: RemoteEvent
+local GetLeaderboardsFunction = Remotes:WaitForChild("GetLeaderboards") :: RemoteFunction
 local StartTrainingFunction = Remotes:WaitForChild("StartTraining") :: RemoteFunction
 local TrainEvent = Remotes:WaitForChild("Train") :: RemoteEvent
 local StopTrainingEvent = Remotes:WaitForChild("StopTraining") :: RemoteEvent
@@ -4914,7 +5179,7 @@ end
 local leftButtons = create("Frame", {
 	AnchorPoint = Vector2.new(0, 0.5),
 	Position = UDim2.new(0, 12, 0.45, 0),
-	Size = UDim2.new(0, 96, 0, 210),
+	Size = UDim2.new(0, 96, 0, 316),
 	BackgroundTransparency = 1,
 	Parent = hud,
 }, { create("UIListLayout", { Padding = UDim.new(0, 10) }) })
@@ -4926,6 +5191,7 @@ local function sideButton(parent: Instance, text: string, color: Color3): TextBu
 end
 local shopButton = sideButton(leftButtons, "🛒\nTienda", Color3.fromRGB(200, 70, 200))
 local indexButton = sideButton(leftButtons, "📖\nÍndice", Color3.fromRGB(60, 110, 230))
+local rankingButton = sideButton(leftButtons, "🏆\nRanking", Color3.fromRGB(230, 170, 30))
 
 local rightButtons = create("Frame", {
 	AnchorPoint = Vector2.new(1, 0.5),
@@ -4944,6 +5210,91 @@ indexButton.Activated:Connect(function()
 end)
 squadButton.Activated:Connect(function()
 	toggleWindow(squadWindow)
+end)
+
+-- ============================================================
+-- Ranking: más dinero, más poder y más ingresos (de todos los servidores)
+-- ============================================================
+local rankingWindow, rankingContent = makeWindow("🏆 Ranking", Color3.fromRGB(230, 170, 30))
+local RANKING_COLUMNS = {
+	{ Key = "Coins", Title = "💰 Dinero", Color = COLORS.Money, Suffix = "" },
+	{ Key = "Power", Title = "💪 Poder", Color = Color3.fromRGB(120, 200, 255), Suffix = "" },
+	{ Key = "Income", Title = "📈 Ingresos", Color = COLORS.Gold, Suffix = "/s" },
+}
+local rankingRows: { [string]: { { Name: TextLabel, Value: TextLabel } } } = {}
+for index, column in RANKING_COLUMNS do
+	local frame = create("Frame", {
+		Position = UDim2.new((index - 1) / 3, 4, 0, 0),
+		Size = UDim2.new(1 / 3, -8, 1, 0),
+		BackgroundColor3 = COLORS.PanelLight,
+		ZIndex = 12,
+		Parent = rankingContent,
+	}, { corner(10) })
+	textLabel({
+		Position = UDim2.new(0, 6, 0, 6),
+		Size = UDim2.new(1, -12, 0, 30),
+		Text = column.Title,
+		TextColor3 = column.Color,
+		ZIndex = 13,
+		Parent = frame,
+	})
+	local rows = {}
+	for i = 1, 10 do
+		local y = 42 + (i - 1) * 30
+		local rankColor = if i == 1 then COLORS.Gold elseif i == 2 then Color3.fromRGB(210, 215, 225) elseif i == 3 then Color3.fromRGB(220, 140, 80) else COLORS.Muted
+		textLabel({
+			Position = UDim2.new(0, 4, 0, y),
+			Size = UDim2.new(0.18, 0, 0, 24),
+			Text = "#" .. i,
+			TextColor3 = rankColor,
+			ZIndex = 13,
+			Parent = frame,
+		})
+		local nameLabel = textLabel({
+			Position = UDim2.new(0.19, 0, 0, y),
+			Size = UDim2.new(0.81, -6, 0, 13),
+			Text = "---",
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = 13,
+			Parent = frame,
+		})
+		local valueLabel = textLabel({
+			Position = UDim2.new(0.19, 0, 0, y + 12),
+			Size = UDim2.new(0.81, -6, 0, 13),
+			Text = "",
+			TextColor3 = column.Color,
+			TextXAlignment = Enum.TextXAlignment.Left,
+			ZIndex = 13,
+			Parent = frame,
+		})
+		rows[i] = { Name = nameLabel, Value = valueLabel }
+	end
+	rankingRows[column.Key] = rows
+end
+
+local function showRanking(lists: any)
+	if typeof(lists) ~= "table" then
+		return
+	end
+	for _, column in RANKING_COLUMNS do
+		local list = lists[column.Key] or {}
+		for i, row in rankingRows[column.Key] do
+			local entry = list[i]
+			row.Name.Text = if entry then entry.Name else "---"
+			row.Value.Text = if entry then Config.FormatShort(entry.Value) .. column.Suffix else ""
+			row.Name.TextColor3 = if entry and entry.UserId == player.UserId then COLORS.Gold else COLORS.Text
+		end
+	end
+end
+
+LeaderboardsEvent.OnClientEvent:Connect(showRanking)
+rankingButton.Activated:Connect(function()
+	toggleWindow(rankingWindow)
+	if rankingWindow.Visible then
+		task.spawn(function()
+			showRanking(GetLeaderboardsFunction:InvokeServer())
+		end)
+	end
 end)
 
 -- ============================================================
@@ -6213,7 +6564,7 @@ end)
       </Item>
     </Item>
   </Item>
-  <Item class="Workspace" referent="18">
+  <Item class="Workspace" referent="19">
     <Properties>
       <string name="Name">Workspace</string>
       <bool name="NeedsPivotMigration">false</bool>
