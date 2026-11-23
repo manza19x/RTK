@@ -1,0 +1,1887 @@
+<roblox version="4">
+  <Item class="Lighting" referent="0">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <float name="Brightness">2</float>
+      <float name="ClockTime">14</float>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="1">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="2">
+      <Properties>
+        <string name="Name">Shared</string>
+      </Properties>
+      <Item class="ModuleScript" referent="3">
+        <Properties>
+          <string name="Name">Config</string>
+          <string name="Source"><![CDATA[--!strict
+-- ============================================================
+--  CONFIGURACIÓN DEL JUEGO "PATEA EL BALÓN"
+--  Aquí puedes cambiar zonas, suerte, balones, futbolistas y precios.
+-- ============================================================
+
+local Config = {}
+
+-- ------------------------------------------------------------
+-- CAMPO Y ZONAS
+-- ------------------------------------------------------------
+Config.NUM_ZONES = 30 -- cantidad de zonas
+Config.ZONE_LENGTH = 100 -- largo de cada zona (en studs, lo mostramos como "metros")
+Config.FIELD_WIDTH = 90 -- ancho del campo
+Config.MAX_DISTANCE = Config.NUM_ZONES * Config.ZONE_LENGTH -- el balón no pasa del final
+
+-- Suerte de cada zona: zona 1 = x1, zona 10 = x7.5, zona 20 = x69, zona 30 = x646
+Config.LUCK_GROWTH = 1.25
+
+function Config.GetLuck(zone: number): number
+	return math.floor(Config.LUCK_GROWTH ^ (zone - 1) * 10 + 0.5) / 10
+end
+
+function Config.GetZoneFromDistance(distance: number): number
+	return math.clamp(math.floor(distance / Config.ZONE_LENGTH) + 1, 1, Config.NUM_ZONES)
+end
+
+function Config.GetZoneColor(zone: number, alternate: boolean?): Color3
+	local hue = (0.33 + (zone - 1) / Config.NUM_ZONES * 0.85) % 1
+	return Color3.fromHSV(hue, 0.55, if alternate then 0.72 else 0.8)
+end
+
+-- ------------------------------------------------------------
+-- PATADA
+-- ------------------------------------------------------------
+Config.BASE_POWER = 50 -- potencia inicial
+Config.POWER_PER_STRENGTH = 15 -- potencia extra por cada nivel de fuerza
+Config.MAX_STRENGTH = 100
+Config.PERFECT_THRESHOLD = 0.9 -- si la barra está arriba de 90% es "¡PERFECTO!"
+Config.PERFECT_BONUS = 1.15 -- multiplicador de una patada perfecta
+Config.MIN_TIMING = 0.2 -- lo mínimo que cuenta la barra
+
+-- Costo para subir del nivel de fuerza `level` al siguiente
+function Config.GetStrengthCost(level: number): number
+	return math.floor(15 * 1.25 ^ (level - 1))
+end
+
+-- ------------------------------------------------------------
+-- BALONES DE LA TIENDA (se compran en orden)
+-- ------------------------------------------------------------
+export type Ball = {
+	Name: string,
+	Price: number,
+	Multiplier: number,
+	Color: Color3,
+	Material: Enum.Material,
+}
+
+Config.Balls = {
+	{ Name = "Balón de Trapo", Price = 0, Multiplier = 1, Color = Color3.fromRGB(196, 170, 130), Material = Enum.Material.Fabric },
+	{ Name = "Balón de Plástico", Price = 150, Multiplier = 1.3, Color = Color3.fromRGB(255, 255, 255), Material = Enum.Material.SmoothPlastic },
+	{ Name = "Balón de Cuero", Price = 600, Multiplier = 1.6, Color = Color3.fromRGB(140, 85, 50), Material = Enum.Material.Leather },
+	{ Name = "Balón Clásico", Price = 1900, Multiplier = 2, Color = Color3.fromRGB(240, 240, 240), Material = Enum.Material.Plastic },
+	{ Name = "Balón de Fuego", Price = 5000, Multiplier = 2.5, Color = Color3.fromRGB(255, 110, 30), Material = Enum.Material.Neon },
+	{ Name = "Balón de Hielo", Price = 13500, Multiplier = 3, Color = Color3.fromRGB(150, 220, 255), Material = Enum.Material.Ice },
+	{ Name = "Balón Eléctrico", Price = 34000, Multiplier = 3.6, Color = Color3.fromRGB(255, 240, 60), Material = Enum.Material.Neon },
+	{ Name = "Balón de Esmeralda", Price = 75000, Multiplier = 4.3, Color = Color3.fromRGB(40, 200, 110), Material = Enum.Material.Glass },
+	{ Name = "Balón de Rubí", Price = 165000, Multiplier = 5, Color = Color3.fromRGB(220, 30, 60), Material = Enum.Material.Glass },
+	{ Name = "Balón de Diamante", Price = 360000, Multiplier = 6, Color = Color3.fromRGB(190, 245, 255), Material = Enum.Material.Glass },
+	{ Name = "Balón Dorado", Price = 750000, Multiplier = 7, Color = Color3.fromRGB(255, 200, 40), Material = Enum.Material.Foil },
+	{ Name = "Balón Galáctico", Price = 1650000, Multiplier = 8, Color = Color3.fromRGB(150, 70, 255), Material = Enum.Material.Neon },
+} :: { Ball }
+
+function Config.GetKickPower(strength: number, ballTier: number): number
+	local ball = Config.Balls[ballTier] or Config.Balls[1]
+	return (Config.BASE_POWER + strength * Config.POWER_PER_STRENGTH) * ball.Multiplier
+end
+
+-- ------------------------------------------------------------
+-- MONEDAS
+-- ------------------------------------------------------------
+-- Cada zona da 10% más monedas por metro
+function Config.GetCoinsForKick(distance: number, zone: number): number
+	return math.floor(distance / 5 * (1 + 0.1 * (zone - 1)))
+end
+
+-- ------------------------------------------------------------
+-- RAREZAS Y FUTBOLISTAS
+-- Chance = "1 en X". Mientras más grande, más difícil.
+-- La suerte de la zona divide la dificultad: con suerte x10, "1 en 1.000" se vuelve "1 en 100".
+-- ------------------------------------------------------------
+export type Rarity = { Name: string, Color: Color3, Order: number }
+
+Config.Rarities = {
+	Comun = { Name = "Común", Color = Color3.fromRGB(205, 205, 205), Order = 1 },
+	PocoComun = { Name = "Poco común", Color = Color3.fromRGB(85, 220, 110), Order = 2 },
+	Raro = { Name = "Raro", Color = Color3.fromRGB(70, 150, 255), Order = 3 },
+	Epico = { Name = "Épico", Color = Color3.fromRGB(175, 90, 255), Order = 4 },
+	Legendario = { Name = "Legendario", Color = Color3.fromRGB(255, 190, 40), Order = 5 },
+	Mitico = { Name = "Mítico", Color = Color3.fromRGB(255, 70, 70), Order = 6 },
+	Secreto = { Name = "Secreto", Color = Color3.fromRGB(255, 90, 210), Order = 7 },
+} :: { [string]: Rarity }
+
+export type Footballer = {
+	Id: string,
+	Name: string,
+	Chance: number,
+	Rarity: string,
+	Shirt: Color3,
+	Shorts: Color3,
+}
+
+-- El primero (Chance = 1) es el que sale si no te toca ninguno más raro.
+Config.Footballers = {
+	{ Id = "canterano", Name = "Canterano", Chance = 1, Rarity = "Comun", Shirt = Color3.fromRGB(230, 230, 230), Shorts = Color3.fromRGB(40, 40, 40) },
+	{ Id = "gavi", Name = "Gavi", Chance = 4, Rarity = "Comun", Shirt = Color3.fromRGB(165, 0, 68), Shorts = Color3.fromRGB(0, 77, 152) },
+	{ Id = "kounde", Name = "Koundé", Chance = 6, Rarity = "Comun", Shirt = Color3.fromRGB(165, 0, 68), Shorts = Color3.fromRGB(0, 77, 152) },
+	{ Id = "valverde", Name = "Fede Valverde", Chance = 10, Rarity = "PocoComun", Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "rodri", Name = "Rodri", Chance = 15, Rarity = "PocoComun", Shirt = Color3.fromRGB(108, 171, 221), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "pedri", Name = "Pedri", Chance = 25, Rarity = "Raro", Shirt = Color3.fromRGB(165, 0, 68), Shorts = Color3.fromRGB(0, 77, 152) },
+	{ Id = "rodrygo", Name = "Rodrygo", Chance = 40, Rarity = "Raro", Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "saka", Name = "Saka", Chance = 60, Rarity = "Raro", Shirt = Color3.fromRGB(220, 0, 0), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "musiala", Name = "Musiala", Chance = 150, Rarity = "Epico", Shirt = Color3.fromRGB(220, 5, 45), Shorts = Color3.fromRGB(220, 5, 45) },
+	{ Id = "wirtz", Name = "Wirtz", Chance = 250, Rarity = "Epico", Shirt = Color3.fromRGB(200, 16, 46), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "yamal", Name = "Lamine Yamal", Chance = 500, Rarity = "Epico", Shirt = Color3.fromRGB(165, 0, 68), Shorts = Color3.fromRGB(0, 77, 152) },
+	{ Id = "bellingham", Name = "Bellingham", Chance = 1000, Rarity = "Legendario", Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "vinicius", Name = "Vinícius Jr", Chance = 2500, Rarity = "Legendario", Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "salah", Name = "Salah", Chance = 5000, Rarity = "Legendario", Shirt = Color3.fromRGB(200, 16, 46), Shorts = Color3.fromRGB(200, 16, 46) },
+	{ Id = "mbappe", Name = "Mbappé", Chance = 15000, Rarity = "Mitico", Shirt = Color3.fromRGB(250, 250, 250), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "haaland", Name = "Haaland", Chance = 40000, Rarity = "Mitico", Shirt = Color3.fromRGB(108, 171, 221), Shorts = Color3.fromRGB(250, 250, 250) },
+	{ Id = "messi", Name = "Messi", Chance = 250000, Rarity = "Secreto", Shirt = Color3.fromRGB(245, 140, 170), Shorts = Color3.fromRGB(20, 20, 20) },
+	{ Id = "cristiano", Name = "Cristiano Ronaldo", Chance = 1000000, Rarity = "Secreto", Shirt = Color3.fromRGB(20, 120, 60), Shorts = Color3.fromRGB(250, 250, 250) },
+} :: { Footballer }
+
+-- Lista ordenada del más raro al más común (para el sorteo)
+local rarestFirst = table.clone(Config.Footballers)
+table.sort(rarestFirst, function(a, b)
+	return a.Chance > b.Chance
+end)
+
+local footballersById: { [string]: Footballer } = {}
+for _, f in Config.Footballers do
+	footballersById[f.Id] = f
+end
+
+function Config.GetFootballer(id: string): Footballer?
+	return footballersById[id]
+end
+
+-- Sortea un futbolista con la suerte dada.
+-- Se prueba del más raro al más común: probabilidad = suerte / X.
+function Config.RollFootballer(luck: number, rng: Random): Footballer
+	for _, f in rarestFirst do
+		if f.Chance > 1 and rng:NextNumber() < luck / f.Chance then
+			return f
+		end
+	end
+	return rarestFirst[#rarestFirst]
+end
+
+-- Monedas extra por atrapar a un futbolista (más raro = más monedas)
+function Config.GetFootballerReward(f: Footballer): number
+	return math.floor(math.sqrt(f.Chance))
+end
+
+-- ------------------------------------------------------------
+-- UTILIDADES
+-- ------------------------------------------------------------
+-- 1234567 -> "1.234.567"
+function Config.FormatNumber(n: number): string
+	local value = math.floor(math.abs(n))
+	local s = tostring(value):reverse():gsub("(%d%d%d)", "%1.")
+	local formatted = s:reverse()
+	if formatted:sub(1, 1) == "." then
+		formatted = formatted:sub(2)
+	end
+	return (if n < 0 then "-" else "") .. formatted
+end
+
+-- Para números de suerte: 3.8 -> "3,8", 646 -> "646"
+function Config.FormatLuck(luck: number): string
+	if luck >= 100 then
+		return Config.FormatNumber(luck)
+	end
+	local text = string.format("%.1f", luck)
+	text = text:gsub("%.0$", "")
+	text = text:gsub("%.", ",")
+	return text
+end
+
+return Config
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="4">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="5">
+      <Properties>
+        <string name="Name">Server</string>
+      </Properties>
+      <Item class="ModuleScript" referent="6">
+        <Properties>
+          <string name="Name">DataManager</string>
+          <string name="Source"><![CDATA[-- Guarda y carga los datos de cada jugador (monedas, fuerza, balón, colección).
+-- En Studio: Home > Game Settings > Security > "Enable Studio Access to API Services"
+-- para que se guarde mientras pruebas.
+local DataStoreService = game:GetService("DataStoreService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local STORE_NAME = "PateaElBalon_v1"
+local AUTOSAVE_SECONDS = 120
+
+export type PlayerData = {
+	Coins: number,
+	Strength: number,
+	BallTier: number,
+	BestDistance: number,
+	TotalKicks: number,
+	Collection: { [string]: number },
+}
+
+local function defaultData(): PlayerData
+	return {
+		Coins = 0,
+		Strength = 1,
+		BallTier = 1,
+		BestDistance = 0,
+		TotalKicks = 0,
+		Collection = {},
+	}
+end
+
+local store: DataStore? = nil
+do
+	local ok, result = pcall(function()
+		return DataStoreService:GetDataStore(STORE_NAME)
+	end)
+	if ok then
+		store = result
+	else
+		warn("[Datos] DataStore no disponible, no se guardará el progreso:", result)
+	end
+end
+
+local DataManager = {}
+
+local profiles: { [Player]: PlayerData } = {}
+-- Si la carga falló, NO guardamos para no borrar el progreso real del jugador
+local canSave: { [Player]: boolean } = {}
+
+local function keyFor(player: Player): string
+	return "jugador_" .. player.UserId
+end
+
+-- Completa campos que falten (por si agregas cosas nuevas en el futuro)
+local function reconcile(saved: any): PlayerData
+	local data = defaultData()
+	if type(saved) == "table" then
+		for key, value in saved do
+			if (data :: any)[key] ~= nil and type(value) == type((data :: any)[key]) then
+				(data :: any)[key] = value
+			end
+		end
+	end
+	return data
+end
+
+function DataManager.Load(player: Player): PlayerData
+	local saved = nil
+	local loaded = store == nil -- sin DataStore no hay nada que perder
+	if store then
+		-- En Studio sin acceso a la API no tiene caso reintentar
+		local attempts = if RunService:IsStudio() then 1 else 3
+		for attempt = 1, attempts do
+			local ok, result = pcall(function()
+				return (store :: DataStore):GetAsync(keyFor(player))
+			end)
+			if ok then
+				saved = result
+				loaded = true
+				break
+			end
+			warn(string.format("[Datos] Error cargando a %s (intento %d): %s", player.Name, attempt, tostring(result)))
+			if attempt < attempts then
+				task.wait(attempt)
+			end
+		end
+	end
+
+	local data = reconcile(saved)
+	if player.Parent == nil then
+		return data -- se salió mientras cargaba
+	end
+	profiles[player] = data
+	canSave[player] = loaded and store ~= nil
+	if not loaded then
+		warn("[Datos] No se pudo cargar a " .. player.Name .. "; su progreso de esta sesión no se guardará.")
+	end
+	return data
+end
+
+function DataManager.Get(player: Player): PlayerData?
+	return profiles[player]
+end
+
+function DataManager.Save(player: Player)
+	local data = profiles[player]
+	if not data or not canSave[player] or not store then
+		return
+	end
+	for attempt = 1, 3 do
+		local ok, err = pcall(function()
+			(store :: DataStore):SetAsync(keyFor(player), data, { player.UserId })
+		end)
+		if ok then
+			return
+		end
+		warn(string.format("[Datos] Error guardando a %s (intento %d): %s", player.Name, attempt, tostring(err)))
+		task.wait(attempt)
+	end
+end
+
+function DataManager.Release(player: Player)
+	DataManager.Save(player)
+	profiles[player] = nil
+	canSave[player] = nil
+end
+
+function DataManager.Start()
+	Players.PlayerRemoving:Connect(DataManager.Release)
+
+	game:BindToClose(function()
+		local pending = 0
+		for _, player in Players:GetPlayers() do
+			pending += 1
+			task.spawn(function()
+				DataManager.Save(player)
+				pending -= 1
+			end)
+		end
+		local started = os.clock()
+		while pending > 0 and os.clock() - started < 25 do
+			task.wait(0.1)
+		end
+	end)
+
+	task.spawn(function()
+		while true do
+			task.wait(AUTOSAVE_SECONDS)
+			for _, player in Players:GetPlayers() do
+				task.spawn(DataManager.Save, player)
+			end
+		end
+	end)
+end
+
+return DataManager
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="7">
+        <Properties>
+          <string name="Name">Main</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[-- Lógica principal del servidor: patadas, vuelo del balón, sorteo de futbolistas y tienda.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+local MapBuilder = require(script.Parent.MapBuilder)
+local DataManager = require(script.Parent.DataManager)
+
+local rng = Random.new()
+
+-- ------------------------------------------------------------
+-- Remotes (comunicación servidor <-> cliente)
+-- ------------------------------------------------------------
+local remotes = Instance.new("Folder")
+remotes.Name = "Remotes"
+
+local function remote(className: string, name: string): any
+	local r = Instance.new(className)
+	r.Name = name
+	r.Parent = remotes
+	return r
+end
+
+local KickEvent: RemoteEvent = remote("RemoteEvent", "Kick")
+local BallLaunchedEvent: RemoteEvent = remote("RemoteEvent", "BallLaunched")
+local KickResultEvent: RemoteEvent = remote("RemoteEvent", "KickResult")
+local AnnouncementEvent: RemoteEvent = remote("RemoteEvent", "Announcement")
+local DataUpdatedEvent: RemoteEvent = remote("RemoteEvent", "DataUpdated")
+local GetDataFunction: RemoteFunction = remote("RemoteFunction", "GetData")
+local PurchaseFunction: RemoteFunction = remote("RemoteFunction", "Purchase")
+
+MapBuilder.Build()
+remotes.Parent = ReplicatedStorage
+DataManager.Start()
+
+local KICK_ORIGIN = Vector3.new(0, 1.5, 0)
+
+-- ------------------------------------------------------------
+-- Datos y leaderstats
+-- ------------------------------------------------------------
+local function updateLeaderstats(player: Player)
+	local data = DataManager.Get(player)
+	local stats = player:FindFirstChild("leaderstats")
+	if not data or not stats then
+		return
+	end
+	(stats:FindFirstChild("Monedas") :: IntValue).Value = data.Coins;
+	(stats:FindFirstChild("Zona Récord") :: IntValue).Value =
+		if data.BestDistance > 0 then Config.GetZoneFromDistance(data.BestDistance) else 0
+end
+
+local function sendData(player: Player)
+	local data = DataManager.Get(player)
+	if data then
+		DataUpdatedEvent:FireClient(player, data)
+		updateLeaderstats(player)
+	end
+end
+
+GetDataFunction.OnServerInvoke = function(player: Player)
+	-- Esperamos a que termine de cargar
+	local started = os.clock()
+	while not DataManager.Get(player) and player.Parent and os.clock() - started < 30 do
+		task.wait(0.2)
+	end
+	return DataManager.Get(player)
+end
+
+local function onPlayerAdded(player: Player)
+	local stats = Instance.new("Folder")
+	stats.Name = "leaderstats"
+	local coins = Instance.new("IntValue")
+	coins.Name = "Monedas"
+	coins.Parent = stats
+	local best = Instance.new("IntValue")
+	best.Name = "Zona Récord"
+	best.Parent = stats
+	stats.Parent = player
+
+	DataManager.Load(player)
+	sendData(player)
+end
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+-- Por si alguien entró antes de que corriera este script
+for _, player in Players:GetPlayers() do
+	task.spawn(onPlayerAdded, player)
+end
+
+-- ------------------------------------------------------------
+-- Futbolista que aparece donde cae el balón
+-- ------------------------------------------------------------
+local CLASSIC_SKIN = Color3.fromRGB(245, 205, 48)
+
+local function buildSimpleRig(f: Config.Footballer): Model
+	-- Plan B si no se puede crear un avatar R15
+	local model = Instance.new("Model")
+	local function block(name: string, size: Vector3, offset: Vector3, color: Color3): Part
+		local p = Instance.new("Part")
+		p.Name = name
+		p.Size = size
+		p.Color = color
+		p.Anchored = true
+		p.CanCollide = false
+		p.CFrame = CFrame.new(offset)
+		p.Parent = model
+		return p
+	end
+	local root = block("HumanoidRootPart", Vector3.new(2, 2, 1), Vector3.new(0, 3, 0), f.Shirt)
+	root.Transparency = 1
+	block("Torso", Vector3.new(2, 2, 1), Vector3.new(0, 3, 0), f.Shirt)
+	block("Head", Vector3.new(1.2, 1.2, 1.2), Vector3.new(0, 4.6, 0), CLASSIC_SKIN)
+	block("LeftArm", Vector3.new(1, 2, 1), Vector3.new(-1.5, 3, 0), CLASSIC_SKIN)
+	block("RightArm", Vector3.new(1, 2, 1), Vector3.new(1.5, 3, 0), CLASSIC_SKIN)
+	block("LeftLeg", Vector3.new(1, 2, 1), Vector3.new(-0.5, 1, 0), f.Shorts)
+	block("RightLeg", Vector3.new(1, 2, 1), Vector3.new(0.5, 1, 0), f.Shorts)
+	model.PrimaryPart = root
+	return model
+end
+
+local function buildAvatar(f: Config.Footballer): Model
+	local ok, result = pcall(function()
+		local desc = Instance.new("HumanoidDescription")
+		desc.HeadColor = CLASSIC_SKIN
+		desc.LeftArmColor = CLASSIC_SKIN
+		desc.RightArmColor = CLASSIC_SKIN
+		desc.TorsoColor = f.Shirt
+		desc.LeftLegColor = f.Shorts
+		desc.RightLegColor = f.Shorts
+		return Players:CreateHumanoidModelFromDescription(desc, Enum.HumanoidRigType.R15)
+	end)
+	if ok and result then
+		local model = result :: Model
+		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		end
+		for _, obj in model:GetDescendants() do
+			if obj:IsA("BasePart") then
+				obj.Anchored = true
+				obj.CanCollide = false
+			end
+		end
+		return model
+	end
+	return buildSimpleRig(f)
+end
+
+local function spawnFootballer(f: Config.Footballer, landing: Vector3, owner: Player)
+	local rarity = Config.Rarities[f.Rarity]
+	local model = buildAvatar(f)
+	model.Name = f.Name
+
+	-- Mirando hacia el punto de patada (-Z), que es hacia donde miran los modelos por defecto.
+	-- Lo ponemos al lado del balón y lo subimos para que sus pies toquen el pasto (y = 0).
+	model:PivotTo(CFrame.new(landing.X + 4, 0, landing.Z))
+	local boxCFrame, size = model:GetBoundingBox()
+	local feetY = boxCFrame.Position.Y - size.Y / 2
+	model:PivotTo(model:GetPivot() + Vector3.new(0, -feetY, 0))
+	local root = model.PrimaryPart or model:FindFirstChildWhichIsA("BasePart")
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(14, 6)
+	billboard.StudsOffset = Vector3.new(0, size.Y / 2 + 3.5, 0)
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 400
+	billboard.Parent = root
+
+	local function line(text: string, y: number, h: number, color: Color3)
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.fromScale(1, h)
+		label.Position = UDim2.fromScale(0, y)
+		label.Font = Enum.Font.FredokaOne
+		label.TextScaled = true
+		label.TextStrokeTransparency = 0
+		label.TextColor3 = color
+		label.Text = text
+		label.Parent = billboard
+	end
+	line(f.Name, 0, 0.45, Color3.new(1, 1, 1))
+	line(rarity.Name .. " · 1 en " .. Config.FormatNumber(f.Chance), 0.45, 0.3, rarity.Color)
+	line("de " .. owner.DisplayName, 0.75, 0.25, Color3.fromRGB(220, 220, 220))
+
+	if rarity.Order >= Config.Rarities.Epico.Order then
+		local highlight = Instance.new("Highlight")
+		highlight.FillColor = rarity.Color
+		highlight.FillTransparency = 0.7
+		highlight.OutlineColor = rarity.Color
+		highlight.Parent = model
+	end
+
+	-- Explosión de partículas del color de la rareza
+	local burst = Instance.new("Part")
+	burst.Anchored = true
+	burst.CanCollide = false
+	burst.Transparency = 1
+	burst.Size = Vector3.one
+	burst.Position = landing
+	burst.Parent = workspace.Futbolistas
+	local emitter = Instance.new("ParticleEmitter")
+	emitter.Color = ColorSequence.new(rarity.Color)
+	emitter.LightEmission = 0.6
+	emitter.Size = NumberSequence.new(1.2, 0)
+	emitter.Speed = NumberRange.new(20, 40)
+	emitter.SpreadAngle = Vector2.new(180, 180)
+	emitter.Lifetime = NumberRange.new(0.6, 1.2)
+	emitter.Rate = 0
+	emitter.Parent = burst
+	emitter:Emit(25 + rarity.Order * 15)
+
+	model.Parent = workspace.Futbolistas
+	Debris:AddItem(burst, 3)
+	Debris:AddItem(model, 10)
+end
+
+-- ------------------------------------------------------------
+-- Patada
+-- ------------------------------------------------------------
+local busy: { [Player]: boolean } = {}
+
+local function createBall(ballTier: number): Part
+	local info = Config.Balls[ballTier] or Config.Balls[1]
+	local ball = Instance.new("Part")
+	ball.Name = "Balon"
+	ball.Shape = Enum.PartType.Ball
+	ball.Size = Vector3.new(3, 3, 3)
+	ball.Color = info.Color
+	ball.Material = info.Material
+	ball.CanCollide = false
+	ball.CanQuery = false
+	ball.TopSurface = Enum.SurfaceType.Smooth
+	ball.BottomSurface = Enum.SurfaceType.Smooth
+
+	local a0 = Instance.new("Attachment")
+	a0.Position = Vector3.new(0, 0.8, 0)
+	a0.Parent = ball
+	local a1 = Instance.new("Attachment")
+	a1.Position = Vector3.new(0, -0.8, 0)
+	a1.Parent = ball
+	local trail = Instance.new("Trail")
+	trail.Attachment0 = a0
+	trail.Attachment1 = a1
+	trail.Color = ColorSequence.new(info.Color)
+	trail.Transparency = NumberSequence.new(0.2, 1)
+	trail.Lifetime = 0.6
+	trail.LightEmission = 0.5
+	trail.FaceCamera = true
+	trail.Parent = ball
+	return ball
+end
+
+local function placeCharacterBehindBall(player: Player)
+	local character = player.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if root then
+		character:PivotTo(CFrame.lookAt(Vector3.new(0, 3, -6), Vector3.new(0, 3, 10)))
+	end
+end
+
+local function handleKick(player: Player, timing: number)
+	local data = DataManager.Get(player)
+	if not data then
+		return
+	end
+
+	timing = math.clamp(timing, 0, 1)
+	local perfect = timing >= Config.PERFECT_THRESHOLD
+	local timingMultiplier = if perfect then Config.PERFECT_BONUS else math.max(timing, Config.MIN_TIMING)
+	local power = Config.GetKickPower(data.Strength, data.BallTier)
+	local distance = math.clamp(power * timingMultiplier * rng:NextNumber(0.95, 1.05), 5, Config.MAX_DISTANCE)
+
+	placeCharacterBehindBall(player)
+
+	-- Vuelo con física: calculamos la velocidad exacta para caer en `landing` en `flightTime` segundos
+	local maxSide = math.min(distance * 0.06, Config.FIELD_WIDTH / 2 - 8)
+	local landing = Vector3.new(rng:NextNumber(-maxSide, maxSide), KICK_ORIGIN.Y, distance)
+	local flightTime = math.clamp(1 + distance / 700, 1, 5.5)
+	local gravity = workspace.Gravity
+	local horizontal = (landing - KICK_ORIGIN) / flightTime
+	local velocity = Vector3.new(horizontal.X, gravity * flightTime / 2, horizontal.Z)
+
+	local ball = createBall(data.BallTier)
+	ball.Position = KICK_ORIGIN
+	ball.Parent = workspace.Balones
+	ball:SetNetworkOwner(nil)
+	ball.AssemblyLinearVelocity = velocity
+	ball.AssemblyAngularVelocity = Vector3.new(20, 0, 0)
+
+	BallLaunchedEvent:FireClient(player, ball, flightTime, perfect)
+
+	task.wait(flightTime)
+	if ball.Parent then
+		ball.Anchored = true
+		ball.Position = landing
+	end
+
+	-- Resultado
+	local zone = Config.GetZoneFromDistance(distance)
+	local luck = Config.GetLuck(zone)
+	local footballer = Config.RollFootballer(luck, rng)
+	local current = DataManager.Get(player)
+	if current then
+		local isNew = (current.Collection[footballer.Id] or 0) == 0
+		local kickCoins = Config.GetCoinsForKick(distance, zone)
+		local bonus = Config.GetFootballerReward(footballer)
+		local newRecord = distance > current.BestDistance
+
+		current.Coins += kickCoins + bonus
+		current.TotalKicks += 1
+		current.Collection[footballer.Id] = (current.Collection[footballer.Id] or 0) + 1
+		if newRecord then
+			current.BestDistance = distance
+		end
+
+		spawnFootballer(footballer, landing, player)
+		KickResultEvent:FireClient(player, {
+			FootballerId = footballer.Id,
+			Distance = distance,
+			Zone = zone,
+			Luck = luck,
+			Coins = kickCoins,
+			Bonus = bonus,
+			IsNew = isNew,
+			NewRecord = newRecord,
+			Perfect = perfect,
+		})
+		sendData(player)
+
+		local rarity = Config.Rarities[footballer.Rarity]
+		if rarity.Order >= Config.Rarities.Legendario.Order then
+			AnnouncementEvent:FireAllClients(
+				string.format(
+					"🎉 ¡%s sacó a %s! (%s · 1 en %s)",
+					player.DisplayName,
+					footballer.Name,
+					rarity.Name,
+					Config.FormatNumber(footballer.Chance)
+				),
+				rarity.Color
+			)
+		end
+	end
+
+	Debris:AddItem(ball, 4)
+	task.wait(1.5) -- pausa para ver el resultado antes de la siguiente patada
+end
+
+KickEvent.OnServerEvent:Connect(function(player: Player, timing: any)
+	if busy[player] or typeof(timing) ~= "number" or timing ~= timing then
+		return
+	end
+	busy[player] = true
+	local ok, err = pcall(handleKick, player, timing)
+	if not ok then
+		warn("[Patada] Error:", err)
+	end
+	busy[player] = nil
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	busy[player] = nil
+end)
+
+-- ------------------------------------------------------------
+-- Tienda
+-- ------------------------------------------------------------
+PurchaseFunction.OnServerInvoke = function(player: Player, kind: any): (boolean, string)
+	local data = DataManager.Get(player)
+	if not data then
+		return false, "Tus datos todavía están cargando."
+	end
+
+	if kind == "Strength" then
+		if data.Strength >= Config.MAX_STRENGTH then
+			return false, "¡Ya tienes la fuerza al máximo!"
+		end
+		local cost = Config.GetStrengthCost(data.Strength)
+		if data.Coins < cost then
+			return false, "Te faltan " .. Config.FormatNumber(cost - data.Coins) .. " monedas."
+		end
+		data.Coins -= cost
+		data.Strength += 1
+		sendData(player)
+		return true, "💪 ¡Fuerza nivel " .. data.Strength .. "!"
+	elseif kind == "Ball" then
+		local nextTier = data.BallTier + 1
+		local ball = Config.Balls[nextTier]
+		if not ball then
+			return false, "¡Ya tienes el mejor balón!"
+		end
+		if data.Coins < ball.Price then
+			return false, "Te faltan " .. Config.FormatNumber(ball.Price - data.Coins) .. " monedas."
+		end
+		data.Coins -= ball.Price
+		data.BallTier = nextTier
+		sendData(player)
+		return true, "⚽ ¡Compraste el " .. ball.Name .. "!"
+	end
+
+	return false, "Compra inválida."
+end
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="8">
+        <Properties>
+          <string name="Name">MapBuilder</string>
+          <string name="Source"><![CDATA[-- Construye el mapa: lobby, punto de patada, las 30 zonas y la portería final.
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
+local MapBuilder = {}
+
+local W = Config.FIELD_WIDTH
+local L = Config.ZONE_LENGTH
+
+local function makePart(props: { [string]: any }): Part
+	local p = Instance.new("Part")
+	p.Anchored = true
+	p.TopSurface = Enum.SurfaceType.Smooth
+	p.BottomSurface = Enum.SurfaceType.Smooth
+	for key, value in props do
+		(p :: any)[key] = value
+	end
+	return p
+end
+
+local function makeLabel(parent: Instance, text: string, size: UDim2, position: UDim2, color: Color3)
+	local label = Instance.new("TextLabel")
+	label.BackgroundTransparency = 1
+	label.Size = size
+	label.Position = position
+	label.Font = Enum.Font.FredokaOne
+	label.TextScaled = true
+	label.TextColor3 = color
+	label.TextStrokeTransparency = 0
+	label.Text = text
+	label.Parent = parent
+	return label
+end
+
+local function buildZone(map: Folder, zone: number)
+	local startZ = (zone - 1) * L
+	local zoneFolder = Instance.new("Folder")
+	zoneFolder.Name = "Zona" .. zone
+	zoneFolder.Parent = map
+
+	-- Pasto en dos franjas para que se vea como cancha
+	for half = 0, 1 do
+		makePart({
+			Name = "Pasto",
+			Size = Vector3.new(W, 2, L / 2),
+			Position = Vector3.new(0, -1, startZ + L / 4 + half * L / 2),
+			Color = Config.GetZoneColor(zone, half == 1),
+			Material = Enum.Material.Grass,
+			Parent = zoneFolder,
+		})
+	end
+
+	-- Línea blanca al inicio de la zona
+	makePart({
+		Name = "Linea",
+		Size = Vector3.new(W, 0.2, 1.5),
+		Position = Vector3.new(0, 0.1, startZ),
+		Color = Color3.new(1, 1, 1),
+		Material = Enum.Material.SmoothPlastic,
+		CanCollide = false,
+		Parent = zoneFolder,
+	})
+
+	-- Bordes del campo
+	for side = -1, 1, 2 do
+		makePart({
+			Name = "Borde",
+			Size = Vector3.new(2, 3, L),
+			Position = Vector3.new(side * (W / 2 + 1), 0.5, startZ + L / 2),
+			Color = Color3.fromRGB(240, 240, 240),
+			Material = Enum.Material.SmoothPlastic,
+			Parent = zoneFolder,
+		})
+	end
+
+	-- Cartel flotante con el número de zona y su suerte
+	local anchor = makePart({
+		Name = "Cartel",
+		Size = Vector3.new(1, 1, 1),
+		Position = Vector3.new(0, 30, startZ + L / 2),
+		Transparency = 1,
+		CanCollide = false,
+		CanQuery = false,
+		CanTouch = false,
+		Parent = zoneFolder,
+	})
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(46, 18) -- en studs: se ve más chico de lejos
+	billboard.LightInfluence = 0
+	billboard.MaxDistance = 2500
+	billboard.Parent = anchor
+	makeLabel(billboard, "ZONA " .. zone, UDim2.fromScale(1, 0.6), UDim2.fromScale(0, 0), Color3.new(1, 1, 1))
+	makeLabel(
+		billboard,
+		"🍀 Suerte x" .. Config.FormatLuck(Config.GetLuck(zone)),
+		UDim2.fromScale(1, 0.4),
+		UDim2.fromScale(0, 0.6),
+		Color3.fromRGB(120, 255, 140)
+	)
+end
+
+local function buildGoal(map: Folder)
+	local z = Config.MAX_DISTANCE + 4
+	local goalWidth, goalHeight = 60, 24
+	local color = Color3.new(1, 1, 1)
+	for side = -1, 1, 2 do
+		makePart({
+			Name = "Poste",
+			Size = Vector3.new(2, goalHeight, 2),
+			Position = Vector3.new(side * goalWidth / 2, goalHeight / 2, z),
+			Color = color,
+			Parent = map,
+		})
+	end
+	makePart({
+		Name = "Travesano",
+		Size = Vector3.new(goalWidth + 2, 2, 2),
+		Position = Vector3.new(0, goalHeight, z),
+		Color = color,
+		Parent = map,
+	})
+	makePart({
+		Name = "Red",
+		Size = Vector3.new(goalWidth, goalHeight, 0.2),
+		Position = Vector3.new(0, goalHeight / 2, z + 10),
+		Color = color,
+		Transparency = 0.6,
+		Material = Enum.Material.ForceField,
+		Parent = map,
+	})
+	-- Pared final invisible para que nadie se salga
+	makePart({
+		Name = "ParedFinal",
+		Size = Vector3.new(W + 4, 60, 2),
+		Position = Vector3.new(0, 30, z + 14),
+		Transparency = 1,
+		Parent = map,
+	})
+	makePart({
+		Name = "PastoFinal",
+		Size = Vector3.new(W, 2, 16),
+		Position = Vector3.new(0, -1, z + 6),
+		Color = Config.GetZoneColor(Config.NUM_ZONES),
+		Material = Enum.Material.Grass,
+		Parent = map,
+	})
+end
+
+function MapBuilder.Build(): Folder
+	-- Si el lugar ya tiene otros spawns (plantilla Baseplate), los desactivamos
+	for _, obj in workspace:GetDescendants() do
+		if obj:IsA("SpawnLocation") then
+			obj.Enabled = false
+		end
+	end
+
+	local map = Instance.new("Folder")
+	map.Name = "Mapa"
+	map.Parent = workspace
+
+	-- Lobby detrás del punto de patada
+	makePart({
+		Name = "Lobby",
+		Size = Vector3.new(W + 4, 2, 80),
+		Position = Vector3.new(0, -1, -40),
+		Color = Color3.fromRGB(70, 75, 90),
+		Material = Enum.Material.Concrete,
+		Parent = map,
+	})
+
+	local spawn = Instance.new("SpawnLocation")
+	spawn.Name = "Spawn"
+	spawn.Anchored = true
+	spawn.Neutral = true
+	spawn.Duration = 0
+	spawn.Size = Vector3.new(14, 1, 14)
+	spawn.Position = Vector3.new(0, 0.5, -55)
+	spawn.Color = Color3.fromRGB(60, 160, 255)
+	spawn.Material = Enum.Material.Neon
+	spawn.TopSurface = Enum.SurfaceType.Smooth
+	spawn.Parent = map
+
+	-- Punto de patada (círculo blanco)
+	local kickSpot = makePart({
+		Name = "PuntoDePatada",
+		Shape = Enum.PartType.Cylinder,
+		Size = Vector3.new(0.3, 16, 16),
+		CFrame = CFrame.new(0, 0.15, -2) * CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.new(1, 1, 1),
+		Material = Enum.Material.SmoothPlastic,
+		CanCollide = false,
+		Parent = map,
+	})
+	local kickSign = Instance.new("BillboardGui")
+	kickSign.Size = UDim2.fromScale(24, 6)
+	kickSign.StudsOffset = Vector3.new(0, 12, 0)
+	kickSign.LightInfluence = 0
+	kickSign.Parent = kickSpot
+	makeLabel(kickSign, "⚽ ¡PATEA AQUÍ!", UDim2.fromScale(1, 1), UDim2.fromScale(0, 0), Color3.fromRGB(255, 230, 80))
+
+	for zone = 1, Config.NUM_ZONES do
+		buildZone(map, zone)
+	end
+	buildGoal(map)
+
+	local balls = Instance.new("Folder")
+	balls.Name = "Balones"
+	balls.Parent = workspace
+
+	local footballers = Instance.new("Folder")
+	footballers.Name = "Futbolistas"
+	footballers.Parent = workspace
+
+	return map
+end
+
+return MapBuilder
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="9">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="10">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="Folder" referent="11">
+        <Properties>
+          <string name="Name">Client</string>
+        </Properties>
+        <Item class="LocalScript" referent="12">
+          <Properties>
+            <string name="Name">Main</string>
+            <string name="Source"><![CDATA[-- Interfaz del jugador: barra de fuerza, botón de patear, tienda, colección y cámara.
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local KickEvent = Remotes:WaitForChild("Kick") :: RemoteEvent
+local BallLaunchedEvent = Remotes:WaitForChild("BallLaunched") :: RemoteEvent
+local KickResultEvent = Remotes:WaitForChild("KickResult") :: RemoteEvent
+local AnnouncementEvent = Remotes:WaitForChild("Announcement") :: RemoteEvent
+local DataUpdatedEvent = Remotes:WaitForChild("DataUpdated") :: RemoteEvent
+local GetDataFunction = Remotes:WaitForChild("GetData") :: RemoteFunction
+local PurchaseFunction = Remotes:WaitForChild("Purchase") :: RemoteFunction
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+
+local data: any = nil
+local kicking = false -- true desde que pateas hasta que el balón cae y vuelve la cámara
+local flyingBall: BasePart? = nil
+local needleValue = 0
+local needleTime = 0
+local NEEDLE_PERIOD = 0.8 -- segundos que tarda la barra en ir de 0 a 100%
+
+-- ============================================================
+-- Ayudantes de UI
+-- ============================================================
+local COLORS = {
+	Panel = Color3.fromRGB(24, 28, 42),
+	PanelLight = Color3.fromRGB(38, 44, 64),
+	Green = Color3.fromRGB(60, 200, 90),
+	GreenDark = Color3.fromRGB(35, 140, 60),
+	Gold = Color3.fromRGB(255, 200, 50),
+	Red = Color3.fromRGB(230, 70, 70),
+	Gray = Color3.fromRGB(110, 115, 130),
+	Text = Color3.new(1, 1, 1),
+	Muted = Color3.fromRGB(180, 185, 200),
+}
+local FONT = Enum.Font.FredokaOne
+
+local function create(className: string, props: { [string]: any }, children: { Instance }?): any
+	local obj = Instance.new(className)
+	for key, value in props do
+		if key ~= "Parent" then
+			(obj :: any)[key] = value
+		end
+	end
+	if children then
+		for _, child in children do
+			child.Parent = obj
+		end
+	end
+	if props.Parent then
+		obj.Parent = props.Parent
+	end
+	return obj
+end
+
+local function corner(radius: number?): UICorner
+	return create("UICorner", { CornerRadius = UDim.new(0, radius or 12) })
+end
+
+local function stroke(color: Color3, thickness: number?): UIStroke
+	return create("UIStroke", {
+		Color = color,
+		Thickness = thickness or 2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	})
+end
+
+local function textLabel(props: { [string]: any }): TextLabel
+	local defaults = {
+		BackgroundTransparency = 1,
+		Font = FONT,
+		TextColor3 = COLORS.Text,
+		TextScaled = true,
+		TextStrokeTransparency = 0.6,
+	}
+	for key, value in props do
+		defaults[key] = value
+	end
+	return create("TextLabel", defaults)
+end
+
+local function button(props: { [string]: any }, color: Color3): TextButton
+	local defaults = {
+		BackgroundColor3 = color,
+		Font = FONT,
+		TextColor3 = COLORS.Text,
+		TextScaled = true,
+		TextStrokeTransparency = 0.6,
+		AutoButtonColor = true,
+	}
+	for key, value in props do
+		defaults[key] = value
+	end
+	local b = create("TextButton", defaults, { corner(10), create("UIPadding", {
+		PaddingTop = UDim.new(0, 4),
+		PaddingBottom = UDim.new(0, 4),
+		PaddingLeft = UDim.new(0, 6),
+		PaddingRight = UDim.new(0, 6),
+	}) })
+	return b
+end
+
+local gui = create("ScreenGui", {
+	Name = "PateaElBalonUI",
+	ResetOnSpawn = false,
+	ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
+	Parent = player:WaitForChild("PlayerGui"),
+})
+
+-- ============================================================
+-- Barra superior (monedas, fuerza, balón)
+-- ============================================================
+local topBar = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 8),
+	Size = UDim2.new(0.7, 0, 0, 44),
+	BackgroundTransparency = 1,
+	Parent = gui,
+}, {
+	create("UISizeConstraint", { MaxSize = Vector2.new(620, 44) }),
+	create("UIListLayout", {
+		FillDirection = Enum.FillDirection.Horizontal,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		Padding = UDim.new(0, 8),
+	}),
+})
+
+local function pill(order: number, widthScale: number): TextLabel
+	return textLabel({
+		LayoutOrder = order,
+		Size = UDim2.new(widthScale, -6, 1, 0),
+		BackgroundTransparency = 0.15,
+		BackgroundColor3 = COLORS.Panel,
+		Text = "...",
+		Parent = topBar,
+	})
+end
+local coinsPill = pill(1, 0.3)
+local strengthPill = pill(2, 0.28)
+local ballPill = pill(3, 0.42)
+for _, p in { coinsPill, strengthPill, ballPill } do
+	corner(12).Parent = p
+	create("UIPadding", { PaddingTop = UDim.new(0, 6), PaddingBottom = UDim.new(0, 6) }).Parent = p
+end
+coinsPill.TextColor3 = COLORS.Gold
+
+-- Info de vuelo (distancia y zona en vivo)
+local flightLabel = textLabel({
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 60),
+	Size = UDim2.new(0.6, 0, 0, 40),
+	Text = "",
+	Visible = false,
+	TextStrokeTransparency = 0,
+	Parent = gui,
+})
+
+-- Anuncios para todo el servidor
+local announcementLabel = textLabel({
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 104),
+	Size = UDim2.new(0.8, 0, 0, 30),
+	Text = "",
+	Visible = false,
+	TextStrokeTransparency = 0,
+	Parent = gui,
+})
+
+-- ============================================================
+-- Panel de patada (abajo)
+-- ============================================================
+local kickPanel = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -16),
+	Size = UDim2.new(0.9, 0, 0, 150),
+	BackgroundColor3 = COLORS.Panel,
+	BackgroundTransparency = 0.15,
+	Parent = gui,
+}, {
+	corner(16),
+	create("UISizeConstraint", { MaxSize = Vector2.new(440, 150) }),
+})
+
+local powerInfo = textLabel({
+	Position = UDim2.new(0, 12, 0, 6),
+	Size = UDim2.new(1, -24, 0, 22),
+	Text = "Potencia: ...",
+	TextColor3 = COLORS.Muted,
+	Parent = kickPanel,
+})
+
+local barBack = create("Frame", {
+	Position = UDim2.new(0, 12, 0, 34),
+	Size = UDim2.new(1, -24, 0, 30),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+	ClipsDescendants = false,
+	Parent = kickPanel,
+}, {
+	corner(8),
+	stroke(Color3.new(0, 0, 0), 2),
+	create("UIGradient", {
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 50, 50)),
+			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(250, 210, 50)),
+			ColorSequenceKeypoint.new(0.89, Color3.fromRGB(70, 210, 90)),
+			ColorSequenceKeypoint.new(1, Color3.fromRGB(70, 210, 90)),
+		}),
+	}),
+})
+
+-- Zona "PERFECTO" al final de la barra
+create("Frame", {
+	Position = UDim2.fromScale(Config.PERFECT_THRESHOLD, 0),
+	Size = UDim2.fromScale(1 - Config.PERFECT_THRESHOLD, 1),
+	BackgroundColor3 = COLORS.Gold,
+	BorderSizePixel = 0,
+	Parent = barBack,
+}, {
+	corner(8),
+	textLabel({ Size = UDim2.fromScale(1, 1), Text = "★", TextColor3 = Color3.new(1, 1, 1) }),
+})
+
+local needle = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0, 0.5),
+	Size = UDim2.new(0, 6, 1, 14),
+	BackgroundColor3 = Color3.new(1, 1, 1),
+	ZIndex = 3,
+	Parent = barBack,
+}, {
+	corner(3),
+	stroke(Color3.new(0, 0, 0), 2),
+})
+
+local kickButton = button({
+	AnchorPoint = Vector2.new(0.5, 0),
+	Position = UDim2.new(0.5, 0, 0, 76),
+	Size = UDim2.new(1, -24, 0, 62),
+	Text = "⚽ PATEAR  (clic o F)",
+	Parent = kickPanel,
+}, COLORS.Green)
+stroke(COLORS.GreenDark, 3).Parent = kickButton
+
+-- ============================================================
+-- Mensajes cortos (compras, errores)
+-- ============================================================
+local toastLabel = textLabel({
+	AnchorPoint = Vector2.new(0.5, 1),
+	Position = UDim2.new(0.5, 0, 1, -176),
+	Size = UDim2.new(0.6, 0, 0, 30),
+	Text = "",
+	Visible = false,
+	TextStrokeTransparency = 0,
+	Parent = gui,
+})
+local toastId = 0
+local function toast(text: string, color: Color3?)
+	toastId += 1
+	local myId = toastId
+	toastLabel.Text = text
+	toastLabel.TextColor3 = color or COLORS.Text
+	toastLabel.Visible = true
+	task.delay(2.5, function()
+		if toastId == myId then
+			toastLabel.Visible = false
+		end
+	end)
+end
+
+-- ============================================================
+-- Ventana genérica (tienda y colección)
+-- ============================================================
+local openWindow: Frame? = nil
+
+local function makeWindow(title: string): (Frame, Frame)
+	local window = create("Frame", {
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.48),
+		Size = UDim2.fromScale(0.9, 0.72),
+		BackgroundColor3 = COLORS.Panel,
+		Visible = false,
+		ZIndex = 10,
+		Parent = gui,
+	}, {
+		corner(16),
+		stroke(COLORS.Gold, 3),
+		create("UISizeConstraint", { MaxSize = Vector2.new(540, 480) }),
+	})
+	textLabel({
+		Position = UDim2.new(0, 16, 0, 10),
+		Size = UDim2.new(1, -80, 0, 36),
+		Text = title,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 11,
+		Parent = window,
+	})
+	local close = button({
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.new(1, -10, 0, 10),
+		Size = UDim2.new(0, 40, 0, 36),
+		Text = "X",
+		ZIndex = 11,
+		Parent = window,
+	}, COLORS.Red)
+	close.Activated:Connect(function()
+		window.Visible = false
+		openWindow = nil
+	end)
+	local content = create("Frame", {
+		Position = UDim2.new(0, 12, 0, 54),
+		Size = UDim2.new(1, -24, 1, -66),
+		BackgroundTransparency = 1,
+		ZIndex = 11,
+		Parent = window,
+	})
+	return window, content
+end
+
+local function toggleWindow(window: Frame)
+	if openWindow and openWindow ~= window then
+		openWindow.Visible = false
+	end
+	window.Visible = not window.Visible
+	openWindow = if window.Visible then window else nil
+end
+
+-- ============================================================
+-- Tienda
+-- ============================================================
+local shopWindow, shopContent = makeWindow("🛒 Tienda")
+
+local strengthCard = create("Frame", {
+	Size = UDim2.new(1, 0, 0, 76),
+	BackgroundColor3 = COLORS.PanelLight,
+	ZIndex = 12,
+	Parent = shopContent,
+}, { corner(12) })
+local strengthTitle = textLabel({
+	Position = UDim2.new(0, 12, 0, 8),
+	Size = UDim2.new(0.6, -12, 0, 30),
+	Text = "💪 Fuerza",
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ZIndex = 13,
+	Parent = strengthCard,
+})
+local strengthDesc = textLabel({
+	Position = UDim2.new(0, 12, 0, 40),
+	Size = UDim2.new(0.6, -12, 0, 24),
+	Text = "",
+	TextColor3 = COLORS.Muted,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ZIndex = 13,
+	Parent = strengthCard,
+})
+local strengthButton = button({
+	AnchorPoint = Vector2.new(1, 0.5),
+	Position = UDim2.new(1, -10, 0.5, 0),
+	Size = UDim2.new(0.38, 0, 0, 52),
+	Text = "",
+	ZIndex = 13,
+	Parent = strengthCard,
+}, COLORS.Green)
+
+textLabel({
+	Position = UDim2.new(0, 4, 0, 84),
+	Size = UDim2.new(1, -8, 0, 26),
+	Text = "⚽ Balones (cada uno multiplica tu potencia)",
+	TextXAlignment = Enum.TextXAlignment.Left,
+	TextColor3 = COLORS.Muted,
+	ZIndex = 12,
+	Parent = shopContent,
+})
+
+local ballList = create("ScrollingFrame", {
+	Position = UDim2.new(0, 0, 0, 116),
+	Size = UDim2.new(1, 0, 1, -116),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 6,
+	CanvasSize = UDim2.new(),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	ZIndex = 12,
+	Parent = shopContent,
+}, {
+	create("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }),
+})
+
+type BallRow = { Button: TextButton }
+local ballRows: { BallRow } = {}
+
+for tier, ball in Config.Balls do
+	local row = create("Frame", {
+		LayoutOrder = tier,
+		Size = UDim2.new(1, -10, 0, 58),
+		BackgroundColor3 = COLORS.PanelLight,
+		ZIndex = 13,
+		Parent = ballList,
+	}, { corner(10) })
+	create("Frame", {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 10, 0.5, 0),
+		Size = UDim2.new(0, 38, 0, 38),
+		BackgroundColor3 = ball.Color,
+		ZIndex = 14,
+		Parent = row,
+	}, { corner(19), stroke(Color3.new(0, 0, 0), 2) })
+	textLabel({
+		Position = UDim2.new(0, 58, 0, 6),
+		Size = UDim2.new(0.58, -58, 0, 26),
+		Text = ball.Name,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 14,
+		Parent = row,
+	})
+	textLabel({
+		Position = UDim2.new(0, 58, 0, 32),
+		Size = UDim2.new(0.58, -58, 0, 20),
+		Text = "Potencia x" .. Config.FormatLuck(ball.Multiplier),
+		TextColor3 = COLORS.Muted,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 14,
+		Parent = row,
+	})
+	local buy = button({
+		AnchorPoint = Vector2.new(1, 0.5),
+		Position = UDim2.new(1, -8, 0.5, 0),
+		Size = UDim2.new(0.38, 0, 0, 44),
+		Text = "",
+		ZIndex = 14,
+		Parent = row,
+	}, COLORS.Green)
+	buy.Activated:Connect(function()
+		if data and tier == data.BallTier + 1 then
+			local ok, message = PurchaseFunction:InvokeServer("Ball")
+			toast(message, if ok then COLORS.Green else COLORS.Red)
+		end
+	end)
+	ballRows[tier] = { Button = buy }
+end
+
+strengthButton.Activated:Connect(function()
+	local ok, message = PurchaseFunction:InvokeServer("Strength")
+	toast(message, if ok then COLORS.Green else COLORS.Red)
+end)
+
+-- ============================================================
+-- Colección
+-- ============================================================
+local collectionWindow, collectionContent = makeWindow("📖 Colección")
+local collectionCount = textLabel({
+	Size = UDim2.new(1, 0, 0, 24),
+	Text = "",
+	TextColor3 = COLORS.Muted,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	ZIndex = 12,
+	Parent = collectionContent,
+})
+local cardGrid = create("ScrollingFrame", {
+	Position = UDim2.new(0, 0, 0, 30),
+	Size = UDim2.new(1, 0, 1, -30),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 6,
+	CanvasSize = UDim2.new(),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+	ZIndex = 12,
+	Parent = collectionContent,
+}, {
+	create("UIGridLayout", {
+		CellSize = UDim2.new(0, 150, 0, 96),
+		CellPadding = UDim2.new(0, 8, 0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+	}),
+})
+
+type Card = { Name: TextLabel, Count: TextLabel, Stroke: UIStroke }
+local cards: { [string]: Card } = {}
+
+for index, f in Config.Footballers do
+	local rarity = Config.Rarities[f.Rarity]
+	local card = create("Frame", {
+		LayoutOrder = index,
+		BackgroundColor3 = COLORS.PanelLight,
+		ZIndex = 13,
+		Parent = cardGrid,
+	}, { corner(10) })
+	local cardStroke = stroke(rarity.Color, 2)
+	cardStroke.Parent = card
+	local nameLabel = textLabel({
+		Position = UDim2.new(0, 6, 0, 6),
+		Size = UDim2.new(1, -12, 0, 30),
+		Text = "???",
+		ZIndex = 14,
+		Parent = card,
+	})
+	textLabel({
+		Position = UDim2.new(0, 6, 0, 38),
+		Size = UDim2.new(1, -12, 0, 20),
+		Text = rarity.Name,
+		TextColor3 = rarity.Color,
+		ZIndex = 14,
+		Parent = card,
+	})
+	textLabel({
+		Position = UDim2.new(0, 6, 0, 58),
+		Size = UDim2.new(0.6, -6, 0, 28),
+		Text = "1 en " .. Config.FormatNumber(f.Chance),
+		TextColor3 = COLORS.Muted,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		ZIndex = 14,
+		Parent = card,
+	})
+	local countLabel = textLabel({
+		Position = UDim2.new(0.6, 0, 0, 58),
+		Size = UDim2.new(0.4, -6, 0, 28),
+		Text = "",
+		TextColor3 = COLORS.Gold,
+		TextXAlignment = Enum.TextXAlignment.Right,
+		ZIndex = 14,
+		Parent = card,
+	})
+	cards[f.Id] = { Name = nameLabel, Count = countLabel, Stroke = cardStroke }
+end
+
+-- ============================================================
+-- Botones laterales
+-- ============================================================
+local sideButtons = create("Frame", {
+	AnchorPoint = Vector2.new(0, 0.5),
+	Position = UDim2.new(0, 12, 0.5, 0),
+	Size = UDim2.new(0, 150, 0, 124),
+	BackgroundTransparency = 1,
+	Parent = gui,
+}, {
+	create("UIListLayout", { Padding = UDim.new(0, 10) }),
+})
+local shopButton = button({ Size = UDim2.new(1, 0, 0, 56), Text = "🛒 Tienda", Parent = sideButtons }, COLORS.Gold)
+local collectionButton =
+	button({ Size = UDim2.new(1, 0, 0, 56), Text = "📖 Colección", Parent = sideButtons }, Color3.fromRGB(90, 120, 255))
+shopButton.Activated:Connect(function()
+	toggleWindow(shopWindow)
+end)
+collectionButton.Activated:Connect(function()
+	toggleWindow(collectionWindow)
+end)
+
+-- ============================================================
+-- Popup de resultado (el futbolista que te salió)
+-- ============================================================
+local resultPopup = create("Frame", {
+	AnchorPoint = Vector2.new(0.5, 0.5),
+	Position = UDim2.fromScale(0.5, 0.36),
+	Size = UDim2.fromScale(0.8, 0.26),
+	BackgroundColor3 = COLORS.Panel,
+	BackgroundTransparency = 0.1,
+	Visible = false,
+	ZIndex = 20,
+	Parent = gui,
+}, {
+	corner(18),
+	create("UISizeConstraint", { MaxSize = Vector2.new(460, 190) }),
+})
+local resultStroke = stroke(COLORS.Gold, 4)
+resultStroke.Parent = resultPopup
+local resultScale = create("UIScale", { Scale = 1, Parent = resultPopup })
+
+local resultTop = textLabel({
+	Position = UDim2.fromScale(0.05, 0.05),
+	Size = UDim2.fromScale(0.9, 0.18),
+	Text = "¡TE SALIÓ!",
+	TextColor3 = COLORS.Muted,
+	ZIndex = 21,
+	Parent = resultPopup,
+})
+local resultName = textLabel({
+	Position = UDim2.fromScale(0.05, 0.23),
+	Size = UDim2.fromScale(0.9, 0.32),
+	Text = "",
+	TextStrokeTransparency = 0,
+	ZIndex = 21,
+	Parent = resultPopup,
+})
+local resultRarity = textLabel({
+	Position = UDim2.fromScale(0.05, 0.55),
+	Size = UDim2.fromScale(0.9, 0.18),
+	Text = "",
+	ZIndex = 21,
+	Parent = resultPopup,
+})
+local resultInfo = textLabel({
+	Position = UDim2.fromScale(0.05, 0.75),
+	Size = UDim2.fromScale(0.9, 0.18),
+	Text = "",
+	TextColor3 = COLORS.Gold,
+	ZIndex = 21,
+	Parent = resultPopup,
+})
+
+local popupId = 0
+local function showResult(result: any)
+	local f = Config.GetFootballer(result.FootballerId)
+	if not f then
+		return
+	end
+	local rarity = Config.Rarities[f.Rarity]
+	popupId += 1
+	local myId = popupId
+
+	resultTop.Text = if result.IsNew then "✨ ¡NUEVO FICHAJE! ✨" else "¡TE SALIÓ!"
+	resultName.Text = string.upper(f.Name)
+	resultName.TextColor3 = rarity.Color
+	resultRarity.Text = rarity.Name .. " · 1 en " .. Config.FormatNumber(f.Chance)
+	resultRarity.TextColor3 = rarity.Color
+	resultInfo.Text = string.format(
+		"Zona %d (🍀 x%s) · +%s 💰",
+		result.Zone,
+		Config.FormatLuck(result.Luck),
+		Config.FormatNumber(result.Coins + result.Bonus)
+	)
+	resultStroke.Color = rarity.Color
+
+	resultPopup.Visible = true
+	resultScale.Scale = 0.3
+	TweenService:Create(resultScale, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Scale = 1 })
+		:Play()
+
+	task.delay(3.5, function()
+		if popupId == myId then
+			resultPopup.Visible = false
+		end
+	end)
+end
+
+-- ============================================================
+-- Actualizar la UI con los datos del jugador
+-- ============================================================
+local function refreshUI()
+	if not data then
+		return
+	end
+	local ball = Config.Balls[data.BallTier]
+	local power = Config.GetKickPower(data.Strength, data.BallTier)
+
+	coinsPill.Text = "💰 " .. Config.FormatNumber(data.Coins)
+	strengthPill.Text = "💪 Fuerza " .. data.Strength
+	ballPill.Text = "⚽ " .. ball.Name
+	powerInfo.Text = string.format(
+		"Potencia: %s m  ·  Récord: %s m",
+		Config.FormatNumber(power),
+		Config.FormatNumber(data.BestDistance)
+	)
+
+	-- Fuerza
+	if data.Strength >= Config.MAX_STRENGTH then
+		strengthTitle.Text = "💪 Fuerza " .. data.Strength .. " (MÁX)"
+		strengthDesc.Text = "¡No se puede mejorar más!"
+		strengthButton.Text = "MÁXIMO"
+		strengthButton.BackgroundColor3 = COLORS.Gray
+	else
+		local cost = Config.GetStrengthCost(data.Strength)
+		strengthTitle.Text = "💪 Fuerza " .. data.Strength .. " → " .. (data.Strength + 1)
+		strengthDesc.Text = "+" .. Config.POWER_PER_STRENGTH .. " de potencia base"
+		strengthButton.Text = "💰 " .. Config.FormatNumber(cost)
+		strengthButton.BackgroundColor3 = if data.Coins >= cost then COLORS.Green else COLORS.Gray
+	end
+
+	-- Balones
+	for tier, row in ballRows do
+		local info = Config.Balls[tier]
+		if tier < data.BallTier then
+			row.Button.Text = "Ya lo tienes"
+			row.Button.BackgroundColor3 = COLORS.PanelLight
+		elseif tier == data.BallTier then
+			row.Button.Text = "✅ USANDO"
+			row.Button.BackgroundColor3 = COLORS.GreenDark
+		elseif tier == data.BallTier + 1 then
+			row.Button.Text = "💰 " .. Config.FormatNumber(info.Price)
+			row.Button.BackgroundColor3 = if data.Coins >= info.Price then COLORS.Green else COLORS.Gray
+		else
+			row.Button.Text = "🔒 " .. Config.FormatNumber(info.Price)
+			row.Button.BackgroundColor3 = Color3.fromRGB(60, 62, 75)
+		end
+	end
+
+	-- Colección
+	local owned = 0
+	for _, f in Config.Footballers do
+		local count = data.Collection[f.Id] or 0
+		local card = cards[f.Id]
+		if count > 0 then
+			owned += 1
+			card.Name.Text = f.Name
+			card.Count.Text = "x" .. Config.FormatNumber(count)
+			card.Stroke.Transparency = 0
+		else
+			card.Name.Text = "???"
+			card.Count.Text = ""
+			card.Stroke.Transparency = 0.6
+		end
+	end
+	collectionCount.Text = string.format("Tienes %d de %d futbolistas", owned, #Config.Footballers)
+end
+
+DataUpdatedEvent.OnClientEvent:Connect(function(newData)
+	data = newData
+	refreshUI()
+end)
+
+task.spawn(function()
+	local initial = GetDataFunction:InvokeServer()
+	if initial and not data then
+		data = initial
+		refreshUI()
+	end
+end)
+
+-- ============================================================
+-- Patear
+-- ============================================================
+local function setKickButtonState()
+	if kicking then
+		kickButton.Text = "⏳ Volando..."
+		kickButton.BackgroundColor3 = COLORS.Gray
+	else
+		kickButton.Text = "⚽ PATEAR  (clic o F)"
+		kickButton.BackgroundColor3 = COLORS.Green
+	end
+end
+
+local function restoreCamera()
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		camera.CameraSubject = humanoid
+	end
+end
+
+local kickId = 0
+local function finishKick(myKick: number)
+	if kickId ~= myKick then
+		return
+	end
+	flyingBall = nil
+	flightLabel.Visible = false
+	restoreCamera()
+	kicking = false
+	setKickButtonState()
+end
+
+local function kick()
+	if kicking or not data then
+		return
+	end
+	kicking = true
+	kickId += 1
+	local myKick = kickId
+	setKickButtonState()
+	KickEvent:FireServer(needleValue)
+	-- Por si el servidor no responde
+	task.delay(12, function()
+		finishKick(myKick)
+	end)
+end
+
+kickButton.Activated:Connect(kick)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if not gameProcessed and input.KeyCode == Enum.KeyCode.F then
+		kick()
+	end
+end)
+
+BallLaunchedEvent.OnClientEvent:Connect(function(ball: BasePart?, _flightTime: number, perfect: boolean)
+	if perfect then
+		toast("⭐ ¡PATADA PERFECTA! ⭐", COLORS.Gold)
+	end
+	if ball then
+		flyingBall = ball
+		camera.CameraSubject = ball
+		camera.CFrame = CFrame.lookAt(ball.Position + Vector3.new(0, 10, -24), ball.Position + Vector3.new(0, 2, 10))
+		flightLabel.Visible = true
+	end
+end)
+
+KickResultEvent.OnClientEvent:Connect(function(result)
+	showResult(result)
+	if result.NewRecord then
+		toast("🏆 ¡NUEVO RÉCORD: " .. Config.FormatNumber(result.Distance) .. " m!", COLORS.Gold)
+	end
+	local myKick = kickId
+	task.delay(2.5, function()
+		finishKick(myKick)
+	end)
+end)
+
+local announcementId = 0
+AnnouncementEvent.OnClientEvent:Connect(function(text: string, color: Color3)
+	announcementId += 1
+	local myId = announcementId
+	announcementLabel.Text = text
+	announcementLabel.TextColor3 = color
+	announcementLabel.Visible = true
+	task.delay(6, function()
+		if announcementId == myId then
+			announcementLabel.Visible = false
+		end
+	end)
+end)
+
+-- ============================================================
+-- Animación de la barra y del texto de vuelo
+-- ============================================================
+RunService.RenderStepped:Connect(function(dt)
+	if not kicking then
+		needleTime += dt
+		-- Onda triangular: 0 -> 1 -> 0
+		needleValue = 1 - math.abs((needleTime / NEEDLE_PERIOD) % 2 - 1)
+		needle.Position = UDim2.fromScale(needleValue, 0.5)
+	end
+
+	local ball = flyingBall
+	if ball and ball.Parent then
+		local distance = math.max(ball.Position.Z, 0)
+		local zone = Config.GetZoneFromDistance(distance)
+		flightLabel.Text = string.format(
+			"📏 %s m  ·  ZONA %d  ·  🍀 x%s",
+			Config.FormatNumber(distance),
+			zone,
+			Config.FormatLuck(Config.GetLuck(zone))
+		)
+		flightLabel.TextColor3 = Config.GetZoneColor(zone):Lerp(Color3.new(1, 1, 1), 0.4)
+	end
+end)
+]]></string>
+          </Properties>
+        </Item>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="Workspace" referent="13">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <bool name="NeedsPivotMigration">false</bool>
+      <bool name="StreamingEnabled">false</bool>
+    </Properties>
+  </Item>
+</roblox>
