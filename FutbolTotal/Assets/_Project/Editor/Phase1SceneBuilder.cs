@@ -46,8 +46,10 @@ namespace FutbolTotal.EditorTools
         {
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
-            Assets assets = CreateAssets();
+            // Primero la escena y después los assets: abrir una escena en modo Single descarga de memoria los assets
+            // no usados, y las referencias obtenidas antes podrían guardarse vacías.
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+            Assets assets = CreateAssets();
 
             ConfigureLight();
 
@@ -93,7 +95,42 @@ namespace FutbolTotal.EditorTools
             AssetDatabase.SaveAssets();
 
             Selection.activeGameObject = matchGo;
-            Debug.Log($"[Fútbol Total] Escena de la Fase 1 creada en {ScenePath}. Pulsa Play para probarla.");
+            int missing = CountMissingSettings();
+            if (missing == 0)
+            {
+                Debug.Log($"[Fútbol Total] Escena de la Fase 1 creada en {ScenePath}. Todas las referencias a ajustes son correctas. Pulsa Play para probarla.");
+            }
+            else
+            {
+                Debug.LogError($"[Fútbol Total] Escena creada, pero {missing} referencias a assets de ajustes están vacías. " +
+                               "Comprueba que los assets de Assets/_Project/Settings se ven bien en el Inspector.");
+            }
+        }
+
+        /// <summary>Comprueba que cada componente de la escena guarda su referencia al asset de ajustes.</summary>
+        private static int CountMissingSettings()
+        {
+            int missing = 0;
+            void Check(Object component, string field)
+            {
+                if (component == null) return;
+                SerializedProperty property = new SerializedObject(component).FindProperty(field);
+                if (property != null && property.objectReferenceValue != null) return;
+                missing++;
+                Debug.LogWarning($"[Fútbol Total] Referencia vacía: {component.GetType().Name}.{field} en '{component.name}'.", component);
+            }
+
+            foreach (var motor in Object.FindObjectsByType<PlayerMotor>(FindObjectsSortMode.None)) Check(motor, "settings");
+            foreach (var stamina in Object.FindObjectsByType<PlayerStamina>(FindObjectsSortMode.None)) Check(stamina, "settings");
+            foreach (var actions in Object.FindObjectsByType<PlayerActions>(FindObjectsSortMode.None)) Check(actions, "settings");
+            foreach (var ball in Object.FindObjectsByType<Ball>(FindObjectsSortMode.None)) Check(ball, "settings");
+            foreach (var camera in Object.FindObjectsByType<MatchCamera>(FindObjectsSortMode.None)) Check(camera, "settings");
+            foreach (var team in Object.FindObjectsByType<Team>(FindObjectsSortMode.None))
+            {
+                Check(team, "settings");
+                Check(team, "formation");
+            }
+            return missing;
         }
 
         // ================================================================== Assets

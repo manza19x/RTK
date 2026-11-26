@@ -51,8 +51,33 @@ namespace FutbolTotal
 
         private void Awake()
         {
+            EnsureSettings();
             GetComponentsInChildren(true, players);
             foreach (FootballPlayer player in players) player.Initialize(this);
+        }
+
+        /// <summary>Si faltan los assets de equipo o formación, usa valores por defecto para que el partido funcione.</summary>
+        private void EnsureSettings()
+        {
+            if (settings == null)
+            {
+                Debug.LogWarning($"[Fútbol Total] {name}: falta TeamSettings; se usan valores por defecto.", this);
+                settings = ScriptableObject.CreateInstance<TeamSettings>();
+                if (side == TeamSide.Away)
+                {
+                    settings.teamName = "Deportivo Marea";
+                    settings.shortName = "MAR";
+                    settings.primaryColor = new Color(0.16f, 0.36f, 0.82f);
+                    settings.secondaryColor = new Color(0.1f, 0.12f, 0.2f);
+                    settings.goalkeeperColor = new Color(0.35f, 0.85f, 0.45f);
+                }
+            }
+            if (formation == null || formation.slots == null || formation.slots.Count == 0)
+            {
+                Debug.LogWarning($"[Fútbol Total] {name}: falta FormationSettings; se usa la formación 2-3-1 por defecto.", this);
+                formation = ScriptableObject.CreateInstance<FormationSettings>();
+                formation.FillDefaultSevenASide();
+            }
         }
 
         public void SetOpponent(Team opponent) => Opponent = opponent;
