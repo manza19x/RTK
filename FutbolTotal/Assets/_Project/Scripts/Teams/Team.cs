@@ -7,6 +7,7 @@ namespace FutbolTotal
     /// Un equipo: identidad, dirección de ataque, formación y lista de jugadores (los hijos de este objeto).
     /// </summary>
     [DefaultExecutionOrder(-90)]
+    [DisallowMultipleComponent]
     public class Team : MonoBehaviour
     {
         [SerializeField] private TeamSettings settings;

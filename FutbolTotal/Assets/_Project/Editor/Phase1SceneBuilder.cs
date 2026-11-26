@@ -363,14 +363,13 @@ namespace FutbolTotal.EditorTools
             capsule.height = 1.8f;
             capsule.radius = a.Movement.bodyRadius;
 
-            var motor = go.AddComponent<PlayerMotor>();
-            SetReference(motor, "settings", a.Movement);
-            var stamina = go.AddComponent<PlayerStamina>();
-            SetReference(stamina, "settings", a.Movement);
-            var actions = go.AddComponent<PlayerActions>();
-            SetReference(actions, "settings", a.Actions);
-
+            // FootballPlayer añade PlayerMotor, PlayerStamina y PlayerActions por [RequireComponent];
+            // se recuperan con GetComponent para no crear duplicados.
             var player = go.AddComponent<FootballPlayer>();
+            SetReference(go.GetComponent<PlayerMotor>(), "settings", a.Movement);
+            SetReference(go.GetComponent<PlayerStamina>(), "settings", a.Movement);
+            SetReference(go.GetComponent<PlayerActions>(), "settings", a.Actions);
+
             SetInt(player, "shirtNumber", slot.shirtNumber);
             SetInt(player, "role", (int)slot.role);
             SetInt(player, "formationIndex", index);

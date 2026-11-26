@@ -7,6 +7,7 @@ namespace FutbolTotal
     /// lo mueve quien tenga el mando (el jugador humano mediante <see cref="HumanTeamController"/>
     /// o, a partir de la Fase 2, la IA). Ambos usan la misma API de <see cref="PlayerMotor"/> y <see cref="PlayerActions"/>.
     /// </summary>
+    [DisallowMultipleComponent]
     [RequireComponent(typeof(PlayerMotor), typeof(PlayerStamina), typeof(PlayerActions))]
     public class FootballPlayer : MonoBehaviour
     {

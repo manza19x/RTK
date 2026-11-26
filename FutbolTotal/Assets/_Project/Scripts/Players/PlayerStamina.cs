@@ -6,6 +6,7 @@ namespace FutbolTotal
     /// Resistencia para el sprint: se gasta al esprintar y se recupera poco a poco tras una breve pausa.
     /// Si se agota, el sprint queda bloqueado hasta recuperar un umbral (evita el "sprint a tirones").
     /// </summary>
+    [DisallowMultipleComponent]
     public class PlayerStamina : MonoBehaviour
     {
         [SerializeField] private PlayerMovementSettings settings;
@@ -16,6 +17,15 @@ namespace FutbolTotal
         public float Current01 { get; private set; } = 1f;
         public bool IsExhausted { get; private set; }
         public bool CanSprint => !IsExhausted && Current01 > 0f;
+
+        private void Awake()
+        {
+            if (settings == null)
+            {
+                Debug.LogWarning("[Fútbol Total] PlayerStamina sin PlayerMovementSettings asignado: se usan valores por defecto.", this);
+                settings = ScriptableObject.CreateInstance<PlayerMovementSettings>();
+            }
+        }
 
         /// <summary>Lo llama <see cref="PlayerMotor"/> en cada paso de física.</summary>
         public void Tick(bool sprinting, float dt)

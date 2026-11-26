@@ -8,7 +8,9 @@ namespace FutbolTotal
     /// <see cref="PassTargetSelector"/>, <see cref="ShotCalculator"/> y <see cref="KickMath"/>.
     /// La misma API la usará la IA, así humano e IA juegan con las mismas reglas.
     /// </summary>
-    [RequireComponent(typeof(FootballPlayer))]
+    // Sin [RequireComponent(typeof(FootballPlayer))]: FootballPlayer ya exige este componente y una
+    // dependencia circular hace que Unity cree componentes duplicados al añadirlos desde código.
+    [DisallowMultipleComponent]
     public class PlayerActions : MonoBehaviour
     {
         [SerializeField] private ActionSettings settings;
@@ -27,8 +29,8 @@ namespace FutbolTotal
             player = GetComponent<FootballPlayer>();
             if (settings == null)
             {
-                Debug.LogError("[Fútbol Total] PlayerActions necesita un ActionSettings.", this);
-                enabled = false;
+                Debug.LogWarning("[Fútbol Total] PlayerActions sin ActionSettings asignado: se usan valores por defecto.", this);
+                settings = ScriptableObject.CreateInstance<ActionSettings>();
             }
         }
 

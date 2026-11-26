@@ -32,6 +32,7 @@ namespace FutbolTotal
     /// - Rueda con una desaceleración constante y vuela sin rozamiento, para que los pases se calculen con exactitud.
     /// - Rotación física congelada; el giro visual lo hace <see cref="BallVisual"/>.
     /// </summary>
+    [DisallowMultipleComponent]
     [RequireComponent(typeof(Rigidbody), typeof(SphereCollider))]
     public class Ball : MonoBehaviour
     {
@@ -69,9 +70,8 @@ namespace FutbolTotal
             sphere = GetComponent<SphereCollider>();
             if (settings == null)
             {
-                Debug.LogError("[Fútbol Total] Ball necesita un BallSettings.", this);
-                enabled = false;
-                return;
+                Debug.LogWarning("[Fútbol Total] Ball sin BallSettings asignado: se usan valores por defecto.", this);
+                settings = ScriptableObject.CreateInstance<BallSettings>();
             }
 
             sphere.radius = settings.radius;

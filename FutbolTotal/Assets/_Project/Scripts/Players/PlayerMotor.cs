@@ -8,6 +8,7 @@ namespace FutbolTotal
     /// Decisión: Rigidbody con velocidad controlada por código (no CharacterController), para que los jugadores
     /// choquen entre sí de forma natural y la física y el balón compartan el mismo paso de tiempo.
     /// </summary>
+    [DisallowMultipleComponent]
     [RequireComponent(typeof(Rigidbody))]
     public class PlayerMotor : MonoBehaviour
     {
@@ -39,6 +40,12 @@ namespace FutbolTotal
 
         private void Awake()
         {
+            if (settings == null)
+            {
+                Debug.LogWarning("[Fútbol Total] PlayerMotor sin PlayerMovementSettings asignado: se usan valores por defecto.", this);
+                settings = ScriptableObject.CreateInstance<PlayerMovementSettings>();
+            }
+
             body = GetComponent<Rigidbody>();
             stamina = GetComponent<PlayerStamina>();
             player = GetComponent<FootballPlayer>();
@@ -47,12 +54,6 @@ namespace FutbolTotal
             body.constraints = RigidbodyConstraints.FreezeRotation | RigidbodyConstraints.FreezePositionY;
             body.interpolation = RigidbodyInterpolation.Interpolate;
             body.collisionDetectionMode = CollisionDetectionMode.Continuous;
-
-            if (settings == null)
-            {
-                Debug.LogError("[Fútbol Total] PlayerMotor necesita un PlayerMovementSettings.", this);
-                enabled = false;
-            }
         }
 
         /// <summary>Intención de movimiento en el plano del campo. La magnitud (0..1) escala la velocidad.</summary>
