@@ -43,6 +43,8 @@ namespace FutbolTotal
         public FootballPlayer ActivePlayer { get; private set; }
         /// <summary>Desactivar durante pausas, celebraciones o saques.</summary>
         public bool InputEnabled { get; set; } = true;
+        /// <summary>Desactivar cuando el control debe quedarse en un jugador concreto (p. ej. el lanzador de un saque).</summary>
+        public bool SwitchingEnabled { get; set; } = true;
 
         public event Action<FootballPlayer> ActivePlayerChanged;
 
@@ -92,7 +94,7 @@ namespace FutbolTotal
             Vector3 move = hasDirection ? CameraRelative(stick) : Vector3.zero;
             player.Motor.SetMoveInput(move, input.SprintHeld);
 
-            if (input.SwitchPlayer.WasPressedThisFrame()) SwitchManually();
+            if (SwitchingEnabled && input.SwitchPlayer.WasPressedThisFrame()) SwitchManually();
 
             Vector3 aim = hasDirection ? move.normalized : player.Forward;
             HandleButton(input.ShortPass, KickType.ShortPass, aim, hasDirection);

@@ -5,9 +5,10 @@ namespace FutbolTotal
 {
     /// <summary>
     /// Herramienta de la Fase 1 (entrenamiento): coloca a los equipos, cuenta goles, permite pausar y recolocar el balón.
-    /// NO es el sistema de reglas del partido: en la Fase 2 lo sustituye MatchManager (cronómetro, saques, final).
+    /// NO es el sistema de reglas del partido: eso es <see cref="MatchManager"/>. Se usa en la escena de entrenamiento
+    /// para probar controles y física sin reloj ni saques.
     /// </summary>
-    public class TrainingHarness : MonoBehaviour
+    public class TrainingHarness : MonoBehaviour, IMatchStatus
     {
         [SerializeField] private HumanTeamController human;
         [SerializeField] private GoalZone[] goals;
@@ -21,6 +22,8 @@ namespace FutbolTotal
         public bool IsPaused { get; private set; }
         public string Message { get; private set; }
         public float MessageUntil { get; private set; }
+        public string ClockText => "--:--";
+        public string PhaseText => "Entrenamiento";
 
         private void Start()
         {

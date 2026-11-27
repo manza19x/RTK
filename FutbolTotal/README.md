@@ -3,10 +3,10 @@
 Prototipo jugable y ampliable de fútbol en 3D: un partido entre dos equipos ficticios, con control
 de teclado o mando, compañeros y rivales con IA, marcador, cronómetro y menús.
 
-> **Estado actual: Fase 1 de 5 (movimiento, balón y controles).**
+> **Estado actual: Fase 2 de 4 (reglas del partido).** La Fase 1 se ha probado en Unity y funciona.
 > El código compila sin errores ni avisos contra las DLL de referencia de Unity, pero **no se ha ejecutado
 > dentro del editor de Unity** (en el entorno de desarrollo no había Unity disponible). Hasta que se ejecute
-> la lista de pruebas de [`docs/Fase1.md`](docs/Fase1.md) no hay que dar por hecho que funciona.
+> la lista de pruebas de [`docs/Fase2.md`](docs/Fase2.md) no hay que dar por hecho que la Fase 2 funciona.
 
 ---
 
@@ -87,27 +87,28 @@ Assets/_Project/
 │   ├── CameraRig/     MatchCamera
 │   ├── Presentation/  SelectionIndicator
 │   ├── Utils/         MeshShapes (FlatMeshBuilder)
-│   └── DevTools/      TrainingHarness, DebugHud      (provisionales de la Fase 1)
+│   ├── Match/         MatchManager, MatchState, RestartRules, AutoRestart
+│   └── DevTools/      TrainingHarness, DebugHud      (provisionales hasta la interfaz definitiva)
 ├── Editor/                       (FutbolTotal.Editor.asmdef)
 │   ├── EditorAssetUtility.cs
-│   └── Phase1SceneBuilder.cs     menú «Fútbol Total ▸ Crear escena de entrenamiento (Fase 1)»
+│   ├── SceneBuilder.cs           menús «Fútbol Total ▸ Crear escena de partido / de entrenamiento»
+│   └── Phase1SceneBuilder.cs     obsoleto y vacío (se puede borrar)
 ├── Resources/FutbolTotal/ (generado) assets de ajustes, equipos y formación
 ├── Art/        (generado)  Materials/, Textures/, Physics/
-└── Scenes/     (generado)  Fase1_Entrenamiento.unity
+└── Scenes/     (generado)  Partido.unity, Entrenamiento.unity
 ```
 
-Carpetas previstas para fases siguientes: `Scripts/Match/` (reglas del partido), `Scripts/AI/`, `Scripts/UI/`,
-`Scenes/MainMenu.unity`, `Scenes/Match.unity`.
+Carpetas previstas para fases siguientes: `Scripts/AI/`, `Scripts/UI/`, `Scenes/MainMenu.unity`.
 
 ---
 
-## 4. Objetos de escena (Fase 1)
+## 4. Objetos de escena (escena de partido)
 
 El generador los crea todos; esta tabla sirve para montarlos a mano o entender qué hay.
 
 | Objeto | Componentes | Notas |
 |---|---|---|
-| `Match` | `MatchContext`, `TrainingHarness`, `DebugHud` | `MatchContext` referencia balón, campo y equipos. |
+| `Match` | `MatchContext`, `MatchManager`, `DebugHud` | `MatchContext` referencia balón, campo y equipos; `MatchManager` aplica las reglas. En la escena de entrenamiento, `TrainingHarness` sustituye a `MatchManager`. |
 | `Pitch` | `Pitch` | Centrado en el origen, sin rotar. Porterías en ±X. |
 | ├ `GroundCollider` | `BoxCollider` (PM_Grass) | Cara superior en y = 0. Invisible. |
 | ├ `Surround`, `PlayingSurface` | `MeshRenderer` | Solo visuales. |
@@ -116,7 +117,7 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 | └ `Goal_West`, `Goal_East` | Postes y larguero (`CapsuleCollider`), red (`BoxCollider`, PM_Net), `GoalZone` (trigger) | |
 | `Ball` | `Rigidbody`, `SphereCollider` (PM_Ball), `Ball`, `BallPossession`, `BallVisual` | Hijo `Visual` con la esfera texturizada. |
 | `Team_Home` | `Team`, `FootballInput`, `HumanTeamController` | Equipo humano; ataca hacia +X. |
-| `Team_Away` | `Team` | Ataca hacia −X. En la Fase 1 sus jugadores están quietos. |
+| `Team_Away` | `Team` | Ataca hacia −X en la primera parte. Hasta la Fase 3 sus jugadores solo se mueven para sacar. |
 | └ cada jugador (`AUR_09_Forward`...) | `Rigidbody`, `CapsuleCollider`, `PlayerMotor`, `PlayerStamina`, `PlayerActions`, `FootballPlayer` | Hijo `Visual` con torso, pantalón, piernas, cabeza y marca frontal. |
 | `Main Camera` | `Camera`, `MatchCamera` | |
 | `SelectionIndicator` | `MeshFilter`, `MeshRenderer`, `SelectionIndicator` | Anillo y flecha bajo el jugador activo. |
@@ -150,26 +151,25 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 
 | Fase | Contenido | Estado |
 |---|---|---|
-| **1. Movimiento, balón y controles** | Campo y porterías, jugadores, movimiento con aceleración/giro, sprint con resistencia, conducción, pase corto/largo con asistencia, tiro con potencia y error, entrada, cambio de jugador, detección de gol, cámara básica, HUD de pruebas, generador de escena | **Hecha (pendiente de prueba en Unity)** |
-| 2. Reglas del partido | `MatchManager` con estados (presentación, saque inicial, en juego, gol, descanso, final), cronómetro configurable, cambio de campo, saques de banda/puerta/córner simplificados, reposicionamiento tras gol | Pendiente |
-| 3. IA y cámara | Cerebro por futbolista con comportamientos separados (con balón, apoyo, desmarque, presión, cobertura de zona, portero), coordinación por equipo para que solo 1-2 jugadores presionen, formación dinámica según balón; cámara con zoom según la jugada y plano de gol | Pendiente |
-| 4. Interfaz de partido | Marcador y tiempo (uGUI + TextMeshPro), posesión, mensajes (gol, descanso, final), barras de potencia y resistencia, nombre/dorsal del jugador activo | Pendiente |
-| 5. Menús y ajustes | Menú principal, pausa (reanudar, reiniciar, salir), opciones (duración, dificultad, volumen, reasignación de controles), pantalla de resultado | Pendiente |
+| **1. Movimiento, balón y controles** | Campo y porterías, jugadores, movimiento con aceleración/giro, sprint con resistencia, conducción, pase corto/largo con asistencia, tiro con potencia y error, entrada, cambio de jugador, detección de gol, cámara básica, HUD de pruebas, generador de escena | **Hecha y probada en Unity** |
+| **2. Reglas del partido** | `MatchManager` con estados (previa, saque inicial, en juego, saque, gol, descanso, final), cronómetro, cambio de campo, saques de banda/puerta/córner simplificados, pausa, repetir partido | **Hecha (pendiente de prueba en Unity)** |
+| 3. IA y porteros | Cerebro por futbolista con comportamientos separados (con balón, apoyo/desmarque, presión, cobertura de zona, portero), coordinación para que solo 1-2 jugadores presionen, formación dinámica según el balón | Pendiente |
+| 4. Interfaz, menús y cámara | Marcador y tiempo definitivos (uGUI), menú principal, pausa con opciones, pantalla de controles, pantalla de resultado, cámara con zoom según la jugada | Pendiente |
 
-> Correspondencia con el proceso de trabajo pedido: los pasos 1-3 (arquitectura, estructura, movimiento/balón/controles)
-> son esta entrega; el paso 4 (lógica del partido, IA, cámara) se reparte en las Fases 2 y 3; el paso 5 (interfaz,
-> menú y ajustes) en las Fases 4 y 5. La cámara básica se adelanta a la Fase 1 porque sin ella no se puede probar
-> el movimiento, que además es relativo a la cámara.
+> La cámara básica se adelanta a la Fase 1 porque sin ella no se puede probar el movimiento, que además es
+> relativo a la cámara. La IA va después de las reglas porque necesita saber en qué estado está el partido
+> (saques, posesión, descanso) para decidir.
 
 ---
 
-## 7. Limitaciones conocidas (Fase 1)
+## 7. Limitaciones conocidas
 
-- **No probado dentro de Unity.** Se ha comprobado que compila (ver más abajo) y se ha simulado numéricamente
-  la conducción en giros bruscos, pero el ajuste fino (velocidades, rigidez del balón, encuadre) necesita jugar.
-- Los jugadores no controlados **están quietos**: no hay IA hasta la Fase 3 (el portero rival no se mueve).
-- No hay saques: el balón rebota en muros invisibles alrededor del campo.
-- El HUD es provisional (IMGUI) y el marcador solo cuenta goles de entrenamiento.
+- **La Fase 2 no se ha probado dentro de Unity.** Compila (ver más abajo); la Fase 1 sí se ha probado.
+- Los jugadores no controlados **están quietos** salvo para sacar: no hay IA hasta la Fase 3 (el portero rival no
+  se mueve). Si un rival recoge el balón, hay que robárselo con una entrada.
+- Reglas simplificadas: el reloj se para cuando el balón no está en juego, no hay tiempo añadido, fueras de juego
+  ni faltas, y el saque de banda se hace con el pie.
+- El HUD es provisional (IMGUI); la interfaz definitiva llega en la Fase 4.
 - Sin animaciones: los cuerpos son primitivas que giran y se desplazan.
 - Las entradas no tienen faltas: si fallas, tu jugador queda aturdido un instante.
 - El tiro incluye un margen de error aleatorio; el tamaño del margen se explica siempre por distancia, presión,
@@ -186,10 +186,10 @@ Resultado: 0 errores, 0 avisos. Esto detecta errores de sintaxis y de tipos, **n
 
 ## 8. Puesta en marcha
 
-Instrucciones detalladas y lista de pruebas: **[`docs/Fase1.md`](docs/Fase1.md)**.
+Instrucciones detalladas y listas de pruebas: **[`docs/Fase1.md`](docs/Fase1.md)** y **[`docs/Fase2.md`](docs/Fase2.md)**.
 
 Resumen:
 
 1. Crea un proyecto nuevo en Unity 6 con la plantilla **Universal 3D** (incluye el Input System).
 2. Copia la carpeta `Assets/_Project` de este repositorio dentro de `Assets/` de tu proyecto.
-3. Menú **Fútbol Total ▸ Crear escena de entrenamiento (Fase 1)** y pulsa **Play**.
+3. Menú **Fútbol Total ▸ Crear escena de partido** y pulsa **Play**.

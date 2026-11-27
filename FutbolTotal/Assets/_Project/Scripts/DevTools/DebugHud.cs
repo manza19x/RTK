@@ -11,7 +11,8 @@ namespace FutbolTotal
     public class DebugHud : MonoBehaviour
     {
         [SerializeField] private HumanTeamController human;
-        [SerializeField] private TrainingHarness harness;
+        [Tooltip("MatchManager (partido) o TrainingHarness (entrenamiento): cualquier componente que implemente IMatchStatus.")]
+        [SerializeField] private MonoBehaviour statusSource;
         [SerializeField] private bool showHelpAtStart = true;
 
         private const float Margin = 12f;
@@ -49,12 +50,20 @@ namespace FutbolTotal
         private GUIStyle label;
         private GUIStyle centered;
         private GUIStyle big;
+        private GUIStyle bigShadow;
         private Texture2D white;
         private Texture2D panelBackground;
+
+        private IMatchStatus status;
 
         private void Start()
         {
             showHelp = showHelpAtStart;
+            status = statusSource as IMatchStatus;
+            if (statusSource != null && status == null)
+            {
+                Debug.LogWarning("[Fútbol Total] DebugHud: el componente de estado no implementa IMatchStatus.", this);
+            }
         }
 
         private void Update()
@@ -78,7 +87,9 @@ namespace FutbolTotal
             label = new GUIStyle(GUI.skin.label) { fontSize = 14, richText = true, wordWrap = false, clipping = TextClipping.Clip };
             label.normal.textColor = Color.white;
             centered = new GUIStyle(label) { alignment = TextAnchor.MiddleCenter };
-            big = new GUIStyle(centered) { fontSize = 42, fontStyle = FontStyle.Bold };
+            big = new GUIStyle(centered) { fontSize = 38, fontStyle = FontStyle.Bold, wordWrap = true };
+            bigShadow = new GUIStyle(big);
+            bigShadow.normal.textColor = new Color(0f, 0f, 0f, 0.7f);
         }
 
         private static Texture2D MakeTexture(Color color)
@@ -114,9 +125,9 @@ namespace FutbolTotal
             float y = panel.y + Padding;
             float width = panel.width - Padding * 2f;
 
-            if (harness != null)
+            if (status != null)
             {
-                Line(x, ref y, width, $"<b>{context.HomeTeam.Settings.shortName} {harness.HomeGoals} - {harness.AwayGoals} {context.AwayTeam.Settings.shortName}</b>   <size=11>(entrenamiento)</size>");
+                Line(x, ref y, width, $"<b>{context.HomeTeam.Settings.shortName} {status.HomeGoals} - {status.AwayGoals} {context.AwayTeam.Settings.shortName}</b>   {status.ClockText}  <size=11>{status.PhaseText}</size>");
             }
             else
             {
@@ -181,16 +192,18 @@ namespace FutbolTotal
 
         private void DrawCenterMessages()
         {
-            if (harness == null) return;
-            Rect center = new Rect(0f, Screen.height * 0.3f, Screen.width, 60f);
-            if (harness.IsPaused)
+            if (status == null) return;
+            Rect center = new Rect(0f, Screen.height * 0.25f, Screen.width, 130f);
+            if (status.IsPaused)
             {
                 GUI.Label(center, "PAUSA", big);
                 GUI.Label(new Rect(0f, center.yMax, Screen.width, 30f), "Esc / Start para continuar", centered);
             }
-            else if (Time.unscaledTime < harness.MessageUntil && !string.IsNullOrEmpty(harness.Message))
+            else if (Time.unscaledTime < status.MessageUntil && !string.IsNullOrEmpty(status.Message))
             {
-                GUI.Label(center, harness.Message, big);
+                // Sombra para que el texto se lea sobre el césped.
+                GUI.Label(new Rect(center.x + 2f, center.y + 2f, center.width, center.height), status.Message, bigShadow);
+                GUI.Label(center, status.Message, big);
             }
         }
     }

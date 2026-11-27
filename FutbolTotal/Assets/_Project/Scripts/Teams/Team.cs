@@ -97,6 +97,12 @@ namespace FutbolTotal
 
         public void SetAttackDirection(int direction) => attackDirection = direction >= 0 ? 1 : -1;
 
+        /// <summary>Impide o permite que los jugadores se desplacen (pueden seguir girando).</summary>
+        public void SetMovementLocked(bool locked)
+        {
+            foreach (FootballPlayer player in players) player.Motor.MovementLocked = locked;
+        }
+
         /// <summary>Convierte una posición de formación normalizada en coordenadas del mundo para este equipo.</summary>
         public Vector3 FormationToWorld(Vector2 normalized)
         {

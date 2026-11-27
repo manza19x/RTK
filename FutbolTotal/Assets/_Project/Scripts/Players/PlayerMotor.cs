@@ -37,6 +37,11 @@ namespace FutbolTotal
         public float BodyRadius => settings.bodyRadius;
         /// <summary>Dirección de movimiento pedida en este momento (normalizada o cero).</summary>
         public Vector3 MoveInput => moveInput;
+        /// <summary>
+        /// Si es true, el jugador no se desplaza pero sí puede girar hacia la dirección pedida
+        /// (saques: el lanzador apunta sin moverse y el resto espera quieto).
+        /// </summary>
+        public bool MovementLocked { get; set; }
 
         private void Awake()
         {
@@ -119,6 +124,17 @@ namespace FutbolTotal
             }
 
             Vector3 input = IsStunned ? Vector3.zero : moveInput;
+
+            if (MovementLocked)
+            {
+                velocity = Vector3.zero;
+                body.linearVelocity = Vector3.zero;
+                IsSprinting = false;
+                stamina?.Tick(false, dt);
+                Rotate(input, player != null && player.HasBall, dt);
+                return;
+            }
+
             bool wantsSprint = sprintRequested && input.sqrMagnitude > 0.25f;
             IsSprinting = wantsSprint && (stamina == null || stamina.CanSprint);
             stamina?.Tick(IsSprinting, dt);
