@@ -19,22 +19,86 @@ namespace FutbolTotal.EditorTools
     internal static class MixamoSetup
     {
         public const string Folder = "Assets/_Project/Art/Mixamo";
-        private const string CharacterPath = Folder + "/Jugador.fbx";
         private const string ControllerPath = Folder + "/FutbolTotal_Animator.controller";
         private const string KitMaterialsFolder = Folder + "/Materials";
 
-        /// <summary>Animaciones esperadas: archivo, ¿en bucle?, trigger que la lanza (null = locomoción).</summary>
-        private static readonly (string file, bool loop, string trigger)[] Clips =
+        // Rutas detectadas en cada preparación (los archivos pueden tener el nombre que pone Mixamo).
+        private static string characterPath;
+        private static readonly Dictionary<string, string> clipPaths = new Dictionary<string, string>();
+
+        /// <summary>
+        /// Animaciones esperadas: nombre, ¿en bucle?, trigger que la lanza (null = locomoción) y palabras con las que
+        /// se reconoce el archivo si no se renombró (por ejemplo «Soccer Pass.fbx»).
+        /// </summary>
+        private static readonly (string file, bool loop, string trigger, string[] keywords)[] Clips =
         {
-            ("Idle", true, null),
-            ("Correr", true, null),
-            ("Sprint", true, null),
-            ("Pase", false, HumanoidAnimatorBridge.PassTrigger),
-            ("Tiro", false, HumanoidAnimatorBridge.ShotTrigger),
-            ("Entrada", false, HumanoidAnimatorBridge.TackleTrigger),
-            ("Estirada", false, HumanoidAnimatorBridge.DiveTrigger),
-            ("Celebracion", false, HumanoidAnimatorBridge.CelebrateTrigger),
+            ("Idle", true, null, new[] { "idle" }),
+            ("Sprint", true, null, new[] { "sprint", "fast run" }),
+            ("Correr", true, null, new[] { "correr", "jog", "run" }),
+            ("Pase", false, HumanoidAnimatorBridge.PassTrigger, new[] { "pase", "pass" }),
+            ("Tiro", false, HumanoidAnimatorBridge.ShotTrigger, new[] { "tiro", "kick", "shot", "shoot", "strike", "penalty" }),
+            ("Entrada", false, HumanoidAnimatorBridge.TackleTrigger, new[] { "entrada", "tackle", "slide" }),
+            ("Estirada", false, HumanoidAnimatorBridge.DiveTrigger, new[] { "estirada", "goalkeeper", "keeper", "dive", "diving", "save" }),
+            ("Celebracion", false, HumanoidAnimatorBridge.CelebrateTrigger, new[] { "celebr", "victory", "cheer" }),
         };
+
+        /// <summary>
+        /// Busca los FBX en cualquier carpeta llamada «Mixamo» dentro de Assets. El personaje es el FBX que tiene malla
+        /// (las animaciones se descargan sin piel); cada animación se reconoce por su nombre en español o por palabras
+        /// del nombre que pone Mixamo.
+        /// </summary>
+        private static void FindFiles()
+        {
+            characterPath = null;
+            clipPaths.Clear();
+            List<string> models = AssetDatabase.FindAssets("t:Model", new[] { "Assets" })
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .Where(p => p.ToLowerInvariant().Contains("/mixamo/") && p.ToLowerInvariant().EndsWith(".fbx"))
+                .OrderBy(p => p)
+                .ToList();
+
+            foreach (string path in models)
+            {
+                var model = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (model != null && model.GetComponentsInChildren<SkinnedMeshRenderer>(true).Length > 0 &&
+                    (characterPath == null || System.IO.Path.GetFileNameWithoutExtension(path).ToLowerInvariant() == "jugador"))
+                {
+                    characterPath = path;
+                }
+            }
+
+            var used = new HashSet<string>();
+            if (characterPath != null) used.Add(characterPath);
+            // Primero los nombres exactos (Idle.fbx, Correr.fbx...), después por palabras clave.
+            foreach (var clip in Clips)
+            {
+                string exact = models.FirstOrDefault(p => !used.Contains(p) &&
+                    System.IO.Path.GetFileNameWithoutExtension(p).ToLowerInvariant() == clip.file.ToLowerInvariant());
+                if (exact != null)
+                {
+                    clipPaths[clip.file] = exact;
+                    used.Add(exact);
+                }
+            }
+            foreach (var clip in Clips)
+            {
+                if (clipPaths.ContainsKey(clip.file)) continue;
+                string match = models.FirstOrDefault(p => !used.Contains(p) &&
+                    clip.keywords.Any(k => System.IO.Path.GetFileNameWithoutExtension(p).ToLowerInvariant().Contains(k)));
+                if (match != null)
+                {
+                    clipPaths[clip.file] = match;
+                    used.Add(match);
+                }
+            }
+
+            string found = string.Join(", ", clipPaths.Select(kv => $"{kv.Key} = {System.IO.Path.GetFileName(kv.Value)}"));
+            string missing = string.Join(", ", Clips.Where(c => !clipPaths.ContainsKey(c.file)).Select(c => c.file));
+            Debug.Log($"[Fútbol Total] Mixamo: {models.Count} FBX en carpetas «Mixamo». Personaje: " +
+                      $"{(characterPath != null ? System.IO.Path.GetFileName(characterPath) : "NO ENCONTRADO")}. " +
+                      $"Animaciones: {(found.Length > 0 ? found : "ninguna")}." +
+                      (missing.Length > 0 ? $" Faltan: {missing}." : ""));
+        }
 
         public sealed class Result
         {
@@ -82,8 +146,18 @@ namespace FutbolTotal.EditorTools
 
         public static Result Prepare(CharacterSettings settings)
         {
-            if (settings == null || !settings.useImportedModel) return null;
-            if (AssetDatabase.LoadAssetAtPath<GameObject>(CharacterPath) == null) return null;
+            if (settings == null || !settings.useImportedModel)
+            {
+                Debug.Log("[Fútbol Total] Personaje importado desactivado en CharacterSettings: se usa el cuerpo generado.");
+                return null;
+            }
+            FindFiles();
+            if (characterPath == null)
+            {
+                Debug.LogWarning("[Fútbol Total] No hay personaje de Mixamo: pon el FBX del personaje (con piel) en una carpeta " +
+                                 "llamada «Mixamo» dentro de Assets. Se usa el cuerpo generado.");
+                return null;
+            }
 
             Avatar avatar = ConfigureCharacter();
             if (avatar == null || !avatar.isValid || !avatar.isHuman)
@@ -95,9 +169,10 @@ namespace FutbolTotal.EditorTools
             var clips = new Dictionary<string, AnimationClip>();
             foreach (var clip in Clips)
             {
-                AnimationClip loaded = ConfigureAnimation(clip.file, clip.loop, avatar);
+                if (!clipPaths.TryGetValue(clip.file, out string clipPath)) continue;
+                AnimationClip loaded = ConfigureAnimation(clipPath, clip.file, clip.loop, avatar);
                 if (loaded != null) clips[clip.file] = loaded;
-                else Debug.LogWarning($"[Fútbol Total] Falta {Folder}/{clip.file}.fbx: esa animación no se usará.");
+                else Debug.LogWarning($"[Fútbol Total] {System.IO.Path.GetFileName(clipPath)} no contiene una animación válida.");
             }
             if (!clips.ContainsKey("Idle") && !clips.ContainsKey("Correr"))
             {
@@ -106,9 +181,10 @@ namespace FutbolTotal.EditorTools
             }
 
             EditorAssetUtility.EnsureFolder(KitMaterialsFolder);
+            EditorAssetUtility.EnsureFolder(Folder);
             var result = new Result(settings)
             {
-                Model = AssetDatabase.LoadAssetAtPath<GameObject>(CharacterPath),
+                Model = AssetDatabase.LoadAssetAtPath<GameObject>(characterPath),
                 Controller = BuildController(clips, settings)
             };
 
@@ -124,7 +200,7 @@ namespace FutbolTotal.EditorTools
 
         private static Avatar ConfigureCharacter()
         {
-            if (AssetImporter.GetAtPath(CharacterPath) is ModelImporter importer)
+            if (AssetImporter.GetAtPath(characterPath) is ModelImporter importer)
             {
                 bool changed = importer.animationType != ModelImporterAnimationType.Human ||
                                importer.avatarSetup != ModelImporterAvatarSetup.CreateFromThisModel ||
@@ -137,12 +213,11 @@ namespace FutbolTotal.EditorTools
                     importer.SaveAndReimport();
                 }
             }
-            return AssetDatabase.LoadAllAssetsAtPath(CharacterPath).OfType<Avatar>().FirstOrDefault();
+            return AssetDatabase.LoadAllAssetsAtPath(characterPath).OfType<Avatar>().FirstOrDefault();
         }
 
-        private static AnimationClip ConfigureAnimation(string file, bool loop, Avatar avatar)
+        private static AnimationClip ConfigureAnimation(string path, string file, bool loop, Avatar avatar)
         {
-            string path = $"{Folder}/{file}.fbx";
             if (!(AssetImporter.GetAtPath(path) is ModelImporter importer)) return null;
 
             importer.animationType = ModelImporterAnimationType.Human;
@@ -174,6 +249,7 @@ namespace FutbolTotal.EditorTools
         private static RuntimeAnimatorController BuildController(Dictionary<string, AnimationClip> clips, CharacterSettings settings)
         {
             if (AssetDatabase.LoadAssetAtPath<AnimatorController>(ControllerPath) != null) AssetDatabase.DeleteAsset(ControllerPath);
+            EditorAssetUtility.EnsureFolder(Folder);
             AnimatorController controller = AnimatorController.CreateAnimatorControllerAtPath(ControllerPath);
 
             controller.AddParameter(HumanoidAnimatorBridge.SpeedParam, AnimatorControllerParameterType.Float);
