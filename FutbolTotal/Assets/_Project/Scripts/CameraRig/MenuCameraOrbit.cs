@@ -6,8 +6,8 @@ namespace FutbolTotal
     public class MenuCameraOrbit : MonoBehaviour
     {
         [SerializeField] private Vector3 center = Vector3.zero;
-        [SerializeField] private float radius = 50f;
-        [SerializeField] private float height = 24f;
+        [SerializeField] private float radius = 72f;
+        [SerializeField] private float height = 30f;
         [Tooltip("Grados por segundo.")]
         [SerializeField] private float speed = 4f;
 

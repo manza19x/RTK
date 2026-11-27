@@ -3,10 +3,10 @@
 Prototipo jugable y ampliable de fútbol en 3D: un partido entre dos equipos ficticios, con control
 de teclado o mando, compañeros y rivales con IA, marcador, cronómetro y menús.
 
-> **Estado actual: Fase 5 (sonido y faltas) implementada.** Las Fases 1, 2 y 3 se han probado en Unity y funcionan.
-> Las Fases 4 y 5 compilan sin errores, pero **no se han ejecutado dentro del editor de Unity** (en el entorno de
-> desarrollo no había Unity disponible). Hasta que se ejecuten las listas de pruebas de [`docs/Fase4.md`](docs/Fase4.md)
-> y [`docs/Fase5.md`](docs/Fase5.md) no hay que dar por hecho que funcionan.
+> **Estado actual: Fase 6 (aspecto visual) implementada.** Las Fases 1, 2 y 3 se han probado en Unity y funcionan.
+> Las Fases 4, 5 y 6 compilan sin errores, pero **no se han ejecutado dentro del editor de Unity** (en el entorno de
+> desarrollo no había Unity disponible). Hasta que se ejecuten las listas de pruebas de [`docs/Fase4.md`](docs/Fase4.md),
+> [`docs/Fase5.md`](docs/Fase5.md) y [`docs/Fase6.md`](docs/Fase6.md) no hay que dar por hecho que funcionan.
 
 ---
 
@@ -24,7 +24,7 @@ Estas son las decisiones tomadas donde el encargo no lo concretaba. Todas se pue
 | Cámara | Retransmisión lateral y elevada que **se desplaza sin girar** | La dirección "arriba" del stick siempre es la misma: no desorienta. |
 | Botones de acción | Se **cargan manteniendo** y actúan **al soltar**, una sola vez | Da profundidad (potencia/distancia) y evita repeticiones por mantener pulsado. |
 | Render | URP (plantilla *Universal 3D*) o pipeline integrado | El generador de escena detecta el pipeline y elige los shaders. HDRP no está contemplado. |
-| Arte | Formas primitivas y materiales de color liso con nombres claros (`M_Home_Kit`, `M_Ball`...) | Se sustituyen fácilmente por modelos y materiales definitivos. |
+| Arte | Todo generado por código: jugadores articulados con animación procedural, césped y balón con texturas generadas, estadio con público instanciado; posprocesado de URP | Sin recursos de terceros. Para realismo total hacen falta modelos humanos y animaciones capturadas (ver `docs/Fase6.md`, «Siguiente paso»). |
 | Identidad | Equipos ficticios **Club Aurora** (rojo) y **Deportivo Marea** (azul) | Sin marcas ni identidades reales. |
 | Interfaz | uGUI **construida por código** al arrancar, con el texto clásico y la fuente integrada | Sin prefabs ni referencias guardadas que se rompan al regenerar escenas, y sin tener que importar los recursos de TextMeshPro. |
 | Sonido | **Generado por código** al arrancar (`ProceduralAudio`) | Sin archivos de audio de terceros; cada clip se puede sustituir por uno grabado. |
@@ -82,6 +82,8 @@ Assets/_Project/
 │   ├── Data/          FootballEnums, PlayerMovementSettings, BallSettings, ActionSettings, CameraSettings,
 │   │                  TeamSettings, FormationSettings, MatchSettings, AISettings, SoundSettings
 │   ├── Audio/         ProceduralAudio, MatchAudio, UISound
+│   ├── Visuals/       ProceduralTextures, PlayerRigBuilder, PlayerAnimator, StadiumGenerator, CrowdRenderer,
+│   │                  NetMeshGenerator; URP/ VisualQualitySetup (ensamblado opcional, solo con URP)
 │   ├── Controls/      FootballInput, ChargeButton, HumanTeamController
 │   ├── Players/       FootballPlayer, PlayerMotor, PlayerStamina, PlayerActions
 │   ├── Ball/          Ball, BallPossession, BallVisual
@@ -168,6 +170,7 @@ Escena `MenuPrincipal`: el campo (sin jugadores), `Main Camera` con `MenuCameraO
 | **3. IA y porteros** | Cerebro por futbolista con comportamientos separados (con balón, apoyo/desmarque, presión, cobertura de zona, portero), coordinación para que solo uno presione, formación dinámica según el balón, etiquetas de rol (F2) | **Hecha y probada en Unity** |
 | **4. Interfaz, menús y cámara** | Marcador, reloj y posesión (uGUI), ficha del jugador con resistencia y carga, mensajes, menú principal con opciones (duración, dificultad, asistencia), pantalla de controles, menú de pausa, pantalla de resultado con estadísticas, cámara con zoom según la jugada | **Hecha (pendiente de prueba en Unity)** |
 | **5. Sonido y faltas** | Sonidos generados por código (golpeos, botes, postes, red, silbato, público y celebración), volumen en Opciones; faltas por entrada por detrás o sin tocar el balón, tiros libres y penaltis, IA que evita entrar por detrás, faltas en las estadísticas | **Hecha (pendiente de prueba en Unity)** |
+| **6. Aspecto visual** | Jugadores articulados con animación (carrera, golpeo, entrada, estirada, celebración), césped con textura y relieve, estadio con gradas, cubiertas, vallas, focos y miles de espectadores animados, redes de hilos, balón clásico, cielo, sol y posprocesado (ACES, bloom, SMAA) | **Hecha (pendiente de prueba en Unity)** |
 
 > La cámara básica se adelanta a la Fase 1 porque sin ella no se puede probar el movimiento, que además es
 > relativo a la cámara. La IA va después de las reglas porque necesita saber en qué estado está el partido
@@ -177,8 +180,9 @@ Escena `MenuPrincipal`: el campo (sin jugadores), `Main Camera` con `MenuCameraO
 
 ## 7. Limitaciones conocidas
 
-- **Las Fases 4 y 5 no se han probado dentro de Unity.** Compilan (la 4 contra stubs de uGUI, ver más abajo); las
-  Fases 1-3 sí se han probado.
+- **Las Fases 4, 5 y 6 no se han probado dentro de Unity.** Compilan (contra stubs de uGUI y URP, ver más abajo);
+  las Fases 1-3 sí se han probado.
+- Aspecto: los jugadores son figuras articuladas hechas con formas simples, no modelos humanos realistas.
 - El equilibrio de la IA necesita ajustarse jugando (`Resources/FutbolTotal/AISettings`); la dificultad del menú
   solo escala unos pocos parámetros del rival.
 - Reglas simplificadas: el reloj se para cuando el balón no está en juego; no hay tiempo añadido, fuera de juego,
@@ -197,7 +201,8 @@ Escena `MenuPrincipal`: el campo (sin jugadores), `Main Camera` con `MenuCameraO
 Sin Unity disponible, se compiló todo el código (juego y editor) con el SDK de .NET contra las DLL de referencia
 `UnityEngine.dll`/`UnityEditor.dll` de Unity 2021, renombrando automáticamente las APIs que cambiaron de nombre en
 Unity 6 (`linearVelocity`→`velocity`, `PhysicsMaterial`→`PhysicMaterial`...) y con stubs mínimos del Input System
-y de uGUI (que es un paquete y no está en esas DLL).
+y de uGUI y URP (que son paquetes y no están en esas DLL). Las texturas generadas se revisaron con una réplica
+en Python del mismo algoritmo.
 Resultado: 0 errores, 0 avisos. Esto detecta errores de sintaxis y de tipos, **no** errores de comportamiento.
 
 ---
@@ -205,7 +210,7 @@ Resultado: 0 errores, 0 avisos. Esto detecta errores de sintaxis y de tipos, **n
 ## 8. Puesta en marcha
 
 Instrucciones detalladas y listas de pruebas: [`docs/Fase1.md`](docs/Fase1.md), [`docs/Fase2.md`](docs/Fase2.md),
-[`docs/Fase3.md`](docs/Fase3.md), [`docs/Fase4.md`](docs/Fase4.md) y [`docs/Fase5.md`](docs/Fase5.md).
+[`docs/Fase3.md`](docs/Fase3.md), [`docs/Fase4.md`](docs/Fase4.md), [`docs/Fase5.md`](docs/Fase5.md) y [`docs/Fase6.md`](docs/Fase6.md).
 
 Resumen:
 
@@ -224,4 +229,4 @@ Resumen:
 | Marcador y cronómetro se actualizan | `MatchManager` + `MatchHud` |
 | Pausar y reanudar sin romper el estado | `MatchManager.SetPaused` (escala de tiempo, entradas descartadas) + `PauseMenu` |
 | Controles explicados en el juego | `ControlsPanel` (menú, pausa y F1) |
-| Implementación y limitaciones documentadas | Este README y `docs/Fase1-5.md` |
+| Implementación y limitaciones documentadas | Este README y `docs/Fase1-6.md` |

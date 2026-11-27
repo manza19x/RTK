@@ -1,0 +1,26 @@
+{
+    "name": "FutbolTotal.Visuals.URP",
+    "rootNamespace": "FutbolTotal",
+    "references": [
+        "FutbolTotal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "FT_URP"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.render-pipelines.universal",
+            "expression": "",
+            "define": "FT_URP"
+        }
+    ],
+    "noEngineReferences": false
+}

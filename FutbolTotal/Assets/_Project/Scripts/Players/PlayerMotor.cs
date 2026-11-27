@@ -34,6 +34,8 @@ namespace FutbolTotal
         public bool IsSprinting { get; private set; }
         public bool IsStunned => Time.time < stunnedUntil;
         public bool IsLunging => Time.time < lungeUntil;
+        /// <summary>Dirección del impulso en curso (entrada o estirada); cero si no hay.</summary>
+        public Vector3 LungeDirection => IsLunging && lungeVelocity.sqrMagnitude > 1e-4f ? lungeVelocity.normalized : Vector3.zero;
         public float JogSpeed => settings.jogSpeed;
         public float SprintSpeed => settings.sprintSpeed;
         public float BodyRadius => settings.bodyRadius;

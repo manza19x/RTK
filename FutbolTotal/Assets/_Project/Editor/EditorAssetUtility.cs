@@ -127,6 +127,100 @@ namespace FutbolTotal.EditorTools
             return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
         }
 
+        /// <summary>Genera una textura con <paramref name="generate"/>, la guarda como PNG y la importa (si no existía).</summary>
+        public static Texture2D LoadOrCreateTexture(string path, System.Func<Texture2D> generate, bool normalMap = false)
+        {
+            var existing = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+            if (existing != null) return existing;
+
+            Texture2D texture = generate();
+            File.WriteAllBytes(path, texture.EncodeToPNG());
+            Object.DestroyImmediate(texture);
+            AssetDatabase.ImportAsset(path);
+
+            if (AssetImporter.GetAtPath(path) is TextureImporter importer)
+            {
+                importer.textureType = normalMap ? TextureImporterType.NormalMap : TextureImporterType.Default;
+                importer.sRGBTexture = !normalMap;
+                importer.wrapMode = TextureWrapMode.Repeat;
+                importer.mipmapEnabled = true;
+                importer.anisoLevel = 8;
+                importer.SaveAndReimport();
+            }
+            return AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+        }
+
+        /// <summary>Descripción de un material de la versión visual mejorada (Fase 6).</summary>
+        public sealed class MaterialSpec
+        {
+            public Color Color = Color.white;
+            public float Smoothness = 0.2f;
+            public float Metallic;
+            public Texture2D Albedo;
+            public Texture2D Normal;
+            public float NormalScale = 1f;
+            public Vector2 Tiling = Vector2.one;
+            public Color Emission = Color.black;
+            public Texture2D EmissionMap;
+            public bool DoubleSided;
+            public bool Unlit;
+        }
+
+        /// <summary>Material con textura, relieve, emisión o doble cara (si ya existe, se reutiliza sin tocarlo).</summary>
+        public static Material LoadOrCreateMaterial(string folder, string name, MaterialSpec spec)
+        {
+            string path = $"{folder}/{name}.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null) return existing;
+
+            var material = new Material(FindShader(spec.Unlit)) { name = name };
+            material.color = spec.Color;
+            if (spec.Albedo != null)
+            {
+                material.mainTexture = spec.Albedo;
+                material.mainTextureScale = spec.Tiling;
+            }
+            if (material.HasProperty("_Smoothness")) material.SetFloat("_Smoothness", spec.Smoothness);
+            if (material.HasProperty("_Glossiness")) material.SetFloat("_Glossiness", spec.Smoothness);
+            if (material.HasProperty("_Metallic")) material.SetFloat("_Metallic", spec.Metallic);
+            if (spec.Normal != null && material.HasProperty("_BumpMap"))
+            {
+                material.SetTexture("_BumpMap", spec.Normal);
+                material.SetTextureScale("_BumpMap", spec.Tiling);
+                if (material.HasProperty("_BumpScale")) material.SetFloat("_BumpScale", spec.NormalScale);
+                material.EnableKeyword("_NORMALMAP");
+            }
+            if (spec.Emission.maxColorComponent > 0f && material.HasProperty("_EmissionColor"))
+            {
+                material.EnableKeyword("_EMISSION");
+                material.SetColor("_EmissionColor", spec.Emission);
+                if (spec.EmissionMap != null) material.SetTexture("_EmissionMap", spec.EmissionMap);
+                material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+            }
+            if (spec.DoubleSided && material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
+            material.enableInstancing = true;
+            AssetDatabase.CreateAsset(material, path);
+            return material;
+        }
+
+        /// <summary>Cielo procedural (atmósfera con sol), guardado como material.</summary>
+        public static Material LoadOrCreateSkybox(string folder)
+        {
+            string path = $"{folder}/M_Sky.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null) return existing;
+            Shader shader = Shader.Find("Skybox/Procedural");
+            if (shader == null) return null;
+            var sky = new Material(shader) { name = "M_Sky" };
+            if (sky.HasProperty("_SunSize")) sky.SetFloat("_SunSize", 0.035f);
+            if (sky.HasProperty("_AtmosphereThickness")) sky.SetFloat("_AtmosphereThickness", 0.85f);
+            if (sky.HasProperty("_SkyTint")) sky.SetColor("_SkyTint", new Color(0.48f, 0.56f, 0.7f));
+            if (sky.HasProperty("_GroundColor")) sky.SetColor("_GroundColor", new Color(0.32f, 0.33f, 0.3f));
+            if (sky.HasProperty("_Exposure")) sky.SetFloat("_Exposure", 1.2f);
+            AssetDatabase.CreateAsset(sky, path);
+            return sky;
+        }
+
         // ------------------------------------------------------------------ Física
 
         public static PhysicsMaterial LoadOrCreatePhysicsMaterial(string folder, string name, float bounciness, float friction,

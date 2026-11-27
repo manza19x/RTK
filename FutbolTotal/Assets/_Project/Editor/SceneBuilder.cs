@@ -48,6 +48,10 @@ namespace FutbolTotal.EditorTools
             public Material HomeKit, HomeTrim, HomeKeeper, AwayKit, AwayTrim, AwayKeeper;
 
             public PhysicsMaterial GrassPhysics, BallPhysics, NetPhysics, PostPhysics, WallPhysics;
+
+            // Versión visual mejorada (Fase 6).
+            public Material Concrete, Seats, Roof, Board, Tower, Lamp, Boots, Sky;
+            public Material[] Skins, Hairs;
         }
 
         [MenuItem("Fútbol Total/Crear todas las escenas", priority = 0)]
@@ -83,17 +87,16 @@ namespace FutbolTotal.EditorTools
         {
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
             Assets assets = CreateAssets();
-            ConfigureLight();
+            ConfigureLight(assets);
             BuildPitch(assets, out _);
 
             GameObject cameraGo = GameObject.Find("Main Camera");
             if (cameraGo != null)
             {
                 var camera = cameraGo.GetComponent<Camera>();
-                camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = new Color(0.45f, 0.62f, 0.8f);
+                camera.clearFlags = CameraClearFlags.Skybox;
                 camera.fieldOfView = 45f;
-                camera.farClipPlane = 400f;
+                camera.farClipPlane = 600f;
                 cameraGo.AddComponent<MenuCameraOrbit>();
             }
 
@@ -115,7 +118,7 @@ namespace FutbolTotal.EditorTools
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
             Assets assets = CreateAssets();
 
-            ConfigureLight();
+            ConfigureLight(assets);
 
             var matchGo = new GameObject("Match");
             var context = matchGo.AddComponent<MatchContext>();
@@ -269,15 +272,9 @@ namespace FutbolTotal.EditorTools
                 })
             };
 
-            Texture2D ballTexture = LoadOrCreateBallTexture(TexturesFolder + "/BallPattern.png");
 
-            a.Grass = LoadOrCreateMaterial(MaterialsFolder, "M_Grass", new Color(0.24f, 0.55f, 0.22f), smoothness: 0.05f);
-            a.GrassStripes = LoadOrCreateMaterial(MaterialsFolder, "M_GrassStripes", new Color(0.2f, 0.48f, 0.19f), smoothness: 0.05f);
-            a.Lines = LoadOrCreateMaterial(MaterialsFolder, "M_Lines", new Color(0.95f, 0.95f, 0.95f), unlit: true);
-            a.Surround = LoadOrCreateMaterial(MaterialsFolder, "M_Surround", new Color(0.18f, 0.32f, 0.18f), smoothness: 0.05f);
+            CreateVisualAssets(a);
             a.GoalFrame = LoadOrCreateMaterial(MaterialsFolder, "M_GoalFrame", Color.white, smoothness: 0.6f);
-            a.Net = LoadOrCreateMaterial(MaterialsFolder, "M_Net", new Color(1f, 1f, 1f, 0.25f), smoothness: 0f, transparent: true);
-            a.BallMaterial = LoadOrCreateMaterial(MaterialsFolder, "M_Ball", Color.white, smoothness: 0.5f, texture: ballTexture);
             a.Indicator = LoadOrCreateMaterial(MaterialsFolder, "M_SelectionIndicator", new Color(1f, 0.9f, 0.2f), unlit: true);
             a.Skin = LoadOrCreateMaterial(MaterialsFolder, "M_Skin", new Color(0.85f, 0.68f, 0.52f));
 
@@ -308,6 +305,65 @@ namespace FutbolTotal.EditorTools
         private static string SettingsPath(string assetName) => $"{SettingsFolder}/{assetName}.asset";
 
         /// <summary>
+        /// Texturas generadas (césped con relieve, balón, vallas) y materiales de la versión visual mejorada.
+        /// Usan nombres nuevos (sufijo _HD) para no depender de materiales de versiones anteriores.
+        /// </summary>
+        private static void CreateVisualAssets(Assets a)
+        {
+            var pitchProbe = new GameObject("PitchProbe").AddComponent<Pitch>(); // Medidas por defecto del campo.
+            float surfaceX = pitchProbe.Length + 3f, surfaceZ = pitchProbe.Width + 3f;
+            Object.DestroyImmediate(pitchProbe.gameObject);
+            const float grassTile = 4f; // metros por repetición de la textura
+
+            Texture2D grass = LoadOrCreateTexture(TexturesFolder + "/Grass_Albedo.png", () => ProceduralTextures.GrassAlbedo(1024));
+            Texture2D grassNormal = LoadOrCreateTexture(TexturesFolder + "/Grass_Normal.png", () => ProceduralTextures.GrassNormal(1024), normalMap: true);
+            Texture2D ball = LoadOrCreateTexture(TexturesFolder + "/Ball_HD.png", () => ProceduralTextures.Ball(1024, 512));
+            Texture2D board = LoadOrCreateTexture(TexturesFolder + "/AdBoard.png",
+                () => ProceduralTextures.AdBoard(512, 64, new Color(0.05f, 0.35f, 0.9f), new Color(0.95f, 0.85f, 0.2f), 1));
+
+            a.Grass = LoadOrCreateMaterial(MaterialsFolder, "M_Grass_HD", new MaterialSpec
+            {
+                Albedo = grass, Normal = grassNormal, NormalScale = 0.6f, Smoothness = 0.12f,
+                Tiling = new Vector2(surfaceX / grassTile, surfaceZ / grassTile)
+            });
+            a.GrassStripes = LoadOrCreateMaterial(MaterialsFolder, "M_GrassStripes_HD", new MaterialSpec
+            {
+                Albedo = grass, Normal = grassNormal, NormalScale = 0.6f, Smoothness = 0.12f,
+                Color = new Color(0.8f, 0.86f, 0.8f), Tiling = Vector2.one // la malla de franjas ya trae UV en metros/4
+            });
+            a.Surround = LoadOrCreateMaterial(MaterialsFolder, "M_Surround_HD", new MaterialSpec
+            {
+                Albedo = grass, Normal = grassNormal, Smoothness = 0.08f, Color = new Color(0.62f, 0.68f, 0.6f),
+                Tiling = new Vector2(40f, 30f)
+            });
+            a.Lines = LoadOrCreateMaterial(MaterialsFolder, "M_Lines_HD", new MaterialSpec { Color = new Color(0.93f, 0.94f, 0.92f), Smoothness = 0.1f });
+            a.Net = LoadOrCreateMaterial(MaterialsFolder, "M_Net_HD", new MaterialSpec { Color = new Color(0.95f, 0.95f, 0.95f), Smoothness = 0.15f, DoubleSided = true });
+            a.BallMaterial = LoadOrCreateMaterial(MaterialsFolder, "M_Ball_HD", new MaterialSpec { Albedo = ball, Smoothness = 0.55f });
+
+            a.Concrete = LoadOrCreateMaterial(MaterialsFolder, "M_Concrete", new MaterialSpec { Color = new Color(0.58f, 0.58f, 0.6f), Smoothness = 0.15f });
+            a.Seats = LoadOrCreateMaterial(MaterialsFolder, "M_Seats", new MaterialSpec { Color = new Color(0.16f, 0.22f, 0.34f), Smoothness = 0.35f });
+            a.Roof = LoadOrCreateMaterial(MaterialsFolder, "M_Roof", new MaterialSpec { Color = new Color(0.32f, 0.34f, 0.38f), Smoothness = 0.55f, Metallic = 0.6f });
+            a.Tower = LoadOrCreateMaterial(MaterialsFolder, "M_Tower", new MaterialSpec { Color = new Color(0.45f, 0.46f, 0.5f), Smoothness = 0.4f, Metallic = 0.5f });
+            a.Lamp = LoadOrCreateMaterial(MaterialsFolder, "M_Lamp", new MaterialSpec { Color = Color.white, Emission = new Color(6f, 5.8f, 5.2f) });
+            a.Board = LoadOrCreateMaterial(MaterialsFolder, "M_AdBoard", new MaterialSpec
+            {
+                Albedo = board, Emission = new Color(1.4f, 1.4f, 1.4f), EmissionMap = board, Smoothness = 0.6f
+            });
+            a.Boots = LoadOrCreateMaterial(MaterialsFolder, "M_Boots", new MaterialSpec { Color = new Color(0.07f, 0.07f, 0.08f), Smoothness = 0.6f });
+
+            Color[] skinTones = { new Color(0.93f, 0.76f, 0.62f), new Color(0.76f, 0.56f, 0.4f), new Color(0.45f, 0.3f, 0.2f) };
+            Color[] hairColors = { new Color(0.08f, 0.06f, 0.05f), new Color(0.3f, 0.18f, 0.1f), new Color(0.75f, 0.6f, 0.35f), new Color(0.15f, 0.12f, 0.1f) };
+            a.Skins = new Material[skinTones.Length];
+            for (int i = 0; i < skinTones.Length; i++)
+                a.Skins[i] = LoadOrCreateMaterial(MaterialsFolder, $"M_Skin_{i}", new MaterialSpec { Color = skinTones[i], Smoothness = 0.3f });
+            a.Hairs = new Material[hairColors.Length];
+            for (int i = 0; i < hairColors.Length; i++)
+                a.Hairs[i] = LoadOrCreateMaterial(MaterialsFolder, $"M_Hair_{i}", new MaterialSpec { Color = hairColors[i], Smoothness = 0.25f });
+
+            a.Sky = LoadOrCreateSkybox(MaterialsFolder);
+        }
+
+        /// <summary>
         /// Versiones anteriores guardaban los ajustes en _Project/Settings. Se mueven a Resources conservando
         /// los valores que se hubieran cambiado a mano.
         /// </summary>
@@ -336,14 +392,37 @@ namespace FutbolTotal.EditorTools
 
         // ================================================================== Escena
 
-        private static void ConfigureLight()
+        /// <summary>Sol de tarde, cielo procedural, luz ambiental del cielo y una ligera neblina a lo lejos.</summary>
+        private static void ConfigureLight(Assets a)
         {
             GameObject lightGo = GameObject.Find("Directional Light");
-            if (lightGo == null) return;
-            lightGo.transform.rotation = Quaternion.Euler(55f, -35f, 0f);
-            var light = lightGo.GetComponent<Light>();
-            light.shadows = LightShadows.Soft;
-            light.intensity = 1.1f;
+            Light light = lightGo != null ? lightGo.GetComponent<Light>() : null;
+            if (light != null)
+            {
+                lightGo.transform.rotation = Quaternion.Euler(38f, -35f, 0f);
+                light.shadows = LightShadows.Soft;
+                light.shadowStrength = 0.85f;
+                light.intensity = 1.35f;
+                light.color = new Color(1f, 0.95f, 0.86f);
+                RenderSettings.sun = light;
+            }
+            if (a.Sky != null)
+            {
+                RenderSettings.skybox = a.Sky;
+                RenderSettings.ambientMode = AmbientMode.Skybox;
+                RenderSettings.ambientIntensity = 1f;
+            }
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = new Color(0.66f, 0.73f, 0.82f);
+            RenderSettings.fogStartDistance = 150f;
+            RenderSettings.fogEndDistance = 450f;
+            DynamicGI.UpdateEnvironment();
+
+            // Posprocesado y calidad de URP (ensamblado opcional: solo existe si el proyecto usa URP).
+            System.Type quality = System.Type.GetType("FutbolTotal.VisualQualitySetup, FutbolTotal.Visuals.URP");
+            if (quality != null) new GameObject("VisualQuality").AddComponent(quality);
+            else Debug.Log("[Fútbol Total] URP no detectado: la escena se crea sin posprocesado.");
         }
 
         private static Pitch BuildPitch(Assets a, out GoalZone[] goals)
@@ -362,7 +441,7 @@ namespace FutbolTotal.EditorTools
 
             // Capas visuales separadas unos milímetros en altura para evitar parpadeos (z-fighting).
             CreateVisual(PrimitiveType.Cube, "Surround", pitchGo.transform, new Vector3(0f, -0.06f, 0f),
-                         new Vector3(groundSize.x, 0.1f, groundSize.z), a.Surround);
+                         new Vector3(pitch.Length + 120f, 0.1f, pitch.Width + 120f), a.Surround);
             CreateVisual(PrimitiveType.Cube, "PlayingSurface", pitchGo.transform, new Vector3(0f, -0.05f, 0f),
                          new Vector3(pitch.Length + 3f, 0.1f, pitch.Width + 3f), a.Grass);
             CreateMarkings("Stripes", pitchGo.transform, pitch, PitchMeshGenerator.Mode.Stripes, a.GrassStripes, 0.008f);
@@ -384,7 +463,32 @@ namespace FutbolTotal.EditorTools
                 BuildGoal(pitchGo.transform, pitch, -1, a),
                 BuildGoal(pitchGo.transform, pitch, 1, a)
             };
+            BuildStadium(pitchGo.transform, pitch, a);
             return pitch;
+        }
+
+        /// <summary>Gradas, cubiertas, vallas, torres de focos y público (mallas generadas por StadiumGenerator).</summary>
+        private static void BuildStadium(Transform parent, Pitch pitch, Assets a)
+        {
+            var stadiumGo = new GameObject("Stadium");
+            stadiumGo.transform.SetParent(parent, false);
+            (string name, Material material, bool shadows)[] parts =
+            {
+                ("Concrete", a.Concrete, true), ("Seats", a.Seats, true), ("Roof", a.Roof, true),
+                ("Boards", a.Board, false), ("Towers", a.Tower, true), ("Lamps", a.Lamp, false)
+            };
+            foreach (var part in parts)
+            {
+                var child = new GameObject(part.name);
+                child.transform.SetParent(stadiumGo.transform, false);
+                child.AddComponent<MeshFilter>();
+                var renderer = child.AddComponent<MeshRenderer>();
+                renderer.sharedMaterial = part.material;
+                renderer.shadowCastingMode = part.shadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
+            }
+            var generator = stadiumGo.AddComponent<StadiumGenerator>();
+            SetReference(generator, "pitch", pitch);
+            stadiumGo.AddComponent<CrowdRenderer>();
         }
 
         private static void CreateMarkings(string name, Transform parent, Pitch pitch, PitchMeshGenerator.Mode mode,
@@ -443,15 +547,24 @@ namespace FutbolTotal.EditorTools
             const float netThickness = 0.05f;
             Vector3 origin = t.position;
             CreateBox("Net_Back", t, origin + new Vector3(s * depth, height * 0.5f, 0f),
-                      new Vector3(netThickness, height, pitch.GoalWidth), a.Net, a.NetPhysics);
+                      new Vector3(netThickness, height, pitch.GoalWidth), null, a.NetPhysics);
             CreateBox("Net_Top", t, origin + new Vector3(s * depth * 0.5f, height, 0f),
-                      new Vector3(depth, netThickness, pitch.GoalWidth), a.Net, a.NetPhysics);
+                      new Vector3(depth, netThickness, pitch.GoalWidth), null, a.NetPhysics);
             for (int i = -1; i <= 1; i += 2)
             {
                 CreateBox(i < 0 ? "Net_SideRight" : "Net_SideLeft", t,
                           origin + new Vector3(s * depth * 0.5f, height * 0.5f, i * (halfWidth + postRadius)),
-                          new Vector3(depth, height, netThickness), a.Net, a.NetPhysics);
+                          new Vector3(depth, height, netThickness), null, a.NetPhysics);
             }
+
+            // Malla visual de hilos (las cajas de arriba solo hacen de colisión).
+            var netGo = new GameObject("NetMesh");
+            netGo.transform.SetParent(t, false);
+            netGo.AddComponent<MeshFilter>();
+            netGo.AddComponent<MeshRenderer>().sharedMaterial = a.Net;
+            var net = netGo.AddComponent<NetMeshGenerator>();
+            SetReference(net, "pitch", pitch);
+            SetInt(net, "goalSide", side);
 
             // Volumen de gol: desde la línea hasta el fondo, entre postes y bajo el larguero.
             var zoneGo = new GameObject("GoalZone");
@@ -545,15 +658,19 @@ namespace FutbolTotal.EditorTools
             SetInt(player, "formationIndex", index);
             SetReference(player, "bodyCollider", capsule);
 
-            // Cuerpo provisional: torso con la equipación, pantalón, cabeza y una marca frontal que indica la orientación.
+            // Cuerpo articulado (cadera, torso, brazos, piernas) animado por PlayerAnimator.
             var visual = new GameObject("Visual").transform;
             visual.SetParent(go.transform, false);
-            CreateVisual(PrimitiveType.Capsule, "Torso", visual, new Vector3(0f, 1.12f, 0f), new Vector3(0.62f, 0.42f, 0.42f), kit);
-            CreateVisual(PrimitiveType.Cylinder, "Shorts", visual, new Vector3(0f, 0.72f, 0f), new Vector3(0.56f, 0.12f, 0.4f), trim);
-            CreateVisual(PrimitiveType.Capsule, "Leg_L", visual, new Vector3(-0.13f, 0.36f, 0f), new Vector3(0.18f, 0.34f, 0.18f), a.Skin);
-            CreateVisual(PrimitiveType.Capsule, "Leg_R", visual, new Vector3(0.13f, 0.36f, 0f), new Vector3(0.18f, 0.34f, 0.18f), a.Skin);
-            CreateVisual(PrimitiveType.Sphere, "Head", visual, new Vector3(0f, 1.66f, 0f), Vector3.one * 0.3f, a.Skin);
-            CreateVisual(PrimitiveType.Cube, "Front", visual, new Vector3(0f, 1.2f, 0.2f), new Vector3(0.3f, 0.16f, 0.06f), trim);
+            PlayerRigBuilder.Build(visual, new PlayerRigMaterials
+            {
+                Shirt = kit,
+                Shorts = trim,
+                Socks = kit,
+                Skin = a.Skins[slot.shirtNumber % a.Skins.Length],
+                Hair = a.Hairs[(slot.shirtNumber / 2) % a.Hairs.Length],
+                Boots = a.Boots
+            });
+            go.AddComponent<PlayerAnimator>();
         }
 
         private static MatchCamera BuildCamera(Assets a, HumanTeamController human)
@@ -568,9 +685,8 @@ namespace FutbolTotal.EditorTools
             var camera = cameraGo.GetComponent<Camera>();
             camera.fieldOfView = a.Camera.fieldOfView;
             camera.nearClipPlane = 0.3f;
-            camera.farClipPlane = 400f;
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.45f, 0.62f, 0.8f);
+            camera.farClipPlane = 600f;
+            camera.clearFlags = CameraClearFlags.Skybox;
             cameraGo.transform.position = new Vector3(0f, a.Camera.height, -a.Camera.distance);
             cameraGo.transform.LookAt(Vector3.zero);
 
