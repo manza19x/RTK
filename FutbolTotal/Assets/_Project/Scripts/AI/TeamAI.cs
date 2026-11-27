@@ -49,13 +49,19 @@ namespace FutbolTotal
             team = GetComponent<Team>();
             human = GetComponent<HumanTeamController>();
 
-            // El equipo rival usa una copia ajustada a la dificultad elegida (el asset original no se toca).
-            if (!IsHumanTeam)
-            {
-                settings = Instantiate(settings);
-                ownsSettingsCopy = true;
-                DifficultyScaling.Apply(settings, GameOptions.Difficulty);
-            }
+            // Cada equipo usa una copia (el asset original no se toca): el rival, ajustada a la dificultad elegida;
+            // los dos, a las valoraciones de su equipo.
+            settings = Instantiate(settings);
+            ownsSettingsCopy = true;
+            if (!IsHumanTeam) DifficultyScaling.Apply(settings, GameOptions.Difficulty);
+        }
+
+        private void ApplyTeamStrength()
+        {
+            TeamStrength strength = team.Strength;
+            settings.keeperReaction *= strength.ReactionFactor;
+            settings.tackleReactionDelay *= strength.ReactionFactor;
+            settings.shootRange *= strength.ShootRangeFactor;
         }
 
         private bool ownsSettingsCopy;
@@ -67,6 +73,7 @@ namespace FutbolTotal
 
         private void Start()
         {
+            ApplyTeamStrength();
             foreach (FootballPlayer player in team.Players)
             {
                 PlayerBrain brain = player.GetComponent<PlayerBrain>();

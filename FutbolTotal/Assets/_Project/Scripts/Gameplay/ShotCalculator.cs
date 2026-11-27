@@ -95,7 +95,7 @@ namespace FutbolTotal
             error += Mathf.Clamp01(bodyAngle / 90f) * s.bodyAngleErrorDegrees;
 
             if (shooter.Motor.IsSprinting) error += s.sprintErrorDegrees;
-            return error;
+            return error * shooter.Team.Strength.ShotErrorFactor;
         }
     }
 }

@@ -87,42 +87,113 @@ namespace FutbolTotal
             return button;
         }
 
+        /// <summary>Lo que muestra cada lado de la tarjeta del partido.</summary>
+        private class TeamSlot
+        {
+            public Image Crest;
+            public Text Name;
+            public Text Ratings;
+            public Image[] Bars;
+        }
+
+        private readonly TeamSlot homeSlot = new TeamSlot();
+        private readonly TeamSlot awaySlot = new TeamSlot();
+
+        /// <summary>
+        /// Tarjeta del partido con selector de equipos: escudo, nombre con flechas para cambiar de equipo,
+        /// valoraciones (ataque, medio, defensa) y media; abajo, estadio y ajustes elegidos.
+        /// </summary>
         private void BuildMatchCard(Transform root)
         {
-            TeamSettings homeSettings = SettingsProvider.Load<TeamSettings>(SettingsProvider.HomeTeamName);
-            TeamSettings awaySettings = SettingsProvider.Load<TeamSettings>(SettingsProvider.AwayTeamName);
-            Color homeA = homeSettings != null ? homeSettings.primaryColor : new Color(0.86f, 0.24f, 0.18f);
-            Color homeB = homeSettings != null ? homeSettings.secondaryColor : Color.white;
-            Color awayA = awaySettings != null ? awaySettings.primaryColor : new Color(0.16f, 0.36f, 0.82f);
-            Color awayB = awaySettings != null ? awaySettings.secondaryColor : new Color(0.1f, 0.12f, 0.2f);
-            string homeName = homeSettings != null ? homeSettings.teamName : "Club Aurora";
-            string awayName = awaySettings != null ? awaySettings.teamName : "Deportivo Marea";
-
             RectTransform card = UIFactory.Rect("MatchCard", root, new Vector2(1f, 0.5f), new Vector2(1f, 0.5f), new Vector2(1f, 0.5f),
-                                                new Vector2(-120f, -20f), new Vector2(720f, 420f));
+                                                new Vector2(-110f, -30f), new Vector2(780f, 520f));
             UIFactory.AddSprite(card, UISprites.Rounded, UITheme.Panel);
             RectTransform header = UIFactory.Rect("Header", card, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0.5f, 1f), Vector2.zero, new Vector2(0f, 58f));
             UIFactory.AddSprite(header, UISprites.Rounded, UITheme.Accent);
-            UIFactory.Label("Text", header, "PARTIDO RÁPIDO", 26, UITheme.TextDark, TextAnchor.MiddleCenter, FontStyle.Bold);
+            UIFactory.Label("Text", header, $"ELIGE LOS EQUIPOS  ·  {TeamCatalog.Count} CLUBES", 24, UITheme.TextDark, TextAnchor.MiddleCenter, FontStyle.Bold);
 
-            CrestColumn(card, -200f, homeA, homeB, homeName, "LOCAL · TÚ");
-            CrestColumn(card, 200f, awayA, awayB, awayName, "VISITANTE · IA");
-            UIFactory.AddText(UIFactory.Anchored("VS", card, new Vector2(0.5f, 0.5f), new Vector2(0f, 30f), new Vector2(160f, 100f)),
-                              "VS", 72, UITheme.Accent, TextAnchor.MiddleCenter, FontStyle.BoldAndItalic);
+            BuildSlot(card, -205f, homeSlot, "LOCAL  ·  TÚ", delta => ChangeTeam(true, delta));
+            BuildSlot(card, 205f, awaySlot, "VISITANTE  ·  IA", delta => ChangeTeam(false, delta));
+            UIFactory.AddText(UIFactory.Anchored("VS", card, new Vector2(0.5f, 0.5f), new Vector2(0f, 70f), new Vector2(140f, 100f)),
+                              "VS", 70, UITheme.Accent, TextAnchor.MiddleCenter, FontStyle.BoldAndItalic);
 
             RectTransform info = UIFactory.Rect("Info", card, new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 20f), new Vector2(-40f, 56f));
             UIFactory.AddSprite(info, UISprites.Pill, UITheme.PanelLight);
             matchInfo = UIFactory.Label("Text", info, "", 22, UITheme.TextDim, TextAnchor.MiddleCenter, FontStyle.Bold);
+            RefreshTeams();
         }
 
-        private static void CrestColumn(RectTransform card, float x, Color primary, Color secondary, string name, string role)
+        private void BuildSlot(RectTransform card, float x, TeamSlot slot, string role, System.Action<int> change)
         {
-            RectTransform crest = UIFactory.Anchored("Crest", card, new Vector2(0.5f, 0.5f), new Vector2(x, 50f), new Vector2(150f, 150f));
-            UIFactory.AddSprite(crest, UISprites.Crest(primary, secondary), Color.white, sliced: false);
-            UIFactory.AddText(UIFactory.Anchored("Name", card, new Vector2(0.5f, 0.5f), new Vector2(x, -55f), new Vector2(300f, 44f)),
-                              name.ToUpperInvariant(), 30, UITheme.Text, TextAnchor.MiddleCenter, FontStyle.Bold);
-            UIFactory.AddText(UIFactory.Anchored("Role", card, new Vector2(0.5f, 0.5f), new Vector2(x, -92f), new Vector2(300f, 30f)),
+            UIFactory.AddText(UIFactory.Anchored("Role", card, new Vector2(0.5f, 1f), new Vector2(x, -88f), new Vector2(320f, 30f)),
                               role, 20, UITheme.TextDim, TextAnchor.MiddleCenter, FontStyle.Bold);
+            RectTransform crest = UIFactory.Anchored("Crest", card, new Vector2(0.5f, 1f), new Vector2(x, -180f), new Vector2(140f, 140f));
+            slot.Crest = UIFactory.AddSprite(crest, UISprites.White, Color.white, sliced: false);
+            slot.Crest.preserveAspect = true;
+
+            // Nombre con flechas para cambiar de equipo (botones pequeños, navegables con mando).
+            slot.Name = UIFactory.AddText(UIFactory.Anchored("Name", card, new Vector2(0.5f, 1f), new Vector2(x, -282f), new Vector2(250f, 44f)),
+                                          "", 26, UITheme.Text, TextAnchor.MiddleCenter, FontStyle.Bold);
+            ArrowButton(card, new Vector2(x - 155f, -282f), "<", () => change(-1));
+            ArrowButton(card, new Vector2(x + 155f, -282f), ">", () => change(1));
+
+            slot.Ratings = UIFactory.AddText(UIFactory.Anchored("Overall", card, new Vector2(0.5f, 1f), new Vector2(x, -322f), new Vector2(320f, 30f)),
+                                             "", 20, UITheme.Gold, TextAnchor.MiddleCenter, FontStyle.Bold);
+            string[] labels = { "ATQ", "MED", "DEF" };
+            slot.Bars = new Image[3];
+            for (int i = 0; i < 3; i++)
+            {
+                float y = -356f - i * 28f;
+                UIFactory.AddText(UIFactory.Anchored("Label" + i, card, new Vector2(0.5f, 1f), new Vector2(x - 120f, y), new Vector2(60f, 24f)),
+                                  labels[i], 18, UITheme.TextDim, TextAnchor.MiddleLeft, FontStyle.Bold);
+                RectTransform track = UIFactory.Anchored("Track" + i, card, new Vector2(0.5f, 1f), new Vector2(x + 25f, y), new Vector2(220f, 10f));
+                UIFactory.AddSprite(track, UISprites.Pill, UITheme.BarBackground);
+                RectTransform fill = UIFactory.Rect("Fill", track, Vector2.zero, new Vector2(0.5f, 1f), new Vector2(0f, 0.5f), Vector2.zero, Vector2.zero);
+                fill.offsetMin = Vector2.zero;
+                fill.offsetMax = Vector2.zero;
+                slot.Bars[i] = UIFactory.AddSprite(fill, UISprites.Pill, UITheme.Accent);
+            }
+        }
+
+        private static void ArrowButton(RectTransform card, Vector2 position, string text, UnityEngine.Events.UnityAction action)
+        {
+            RectTransform holder = UIFactory.Anchored("Arrow" + text, card, new Vector2(0.5f, 1f), position, new Vector2(52f, 52f));
+            Button button = UIFactory.Button(holder, text, action, 52f, 52f, 30);
+            ((RectTransform)button.transform).anchoredPosition = Vector2.zero;
+        }
+
+        private void ChangeTeam(bool home, int delta)
+        {
+            int index = TeamCatalog.Wrap((home ? GameOptions.HomeTeamIndex : GameOptions.AwayTeamIndex) + delta);
+            int other = TeamCatalog.Wrap(home ? GameOptions.AwayTeamIndex : GameOptions.HomeTeamIndex);
+            if (index == other) index = TeamCatalog.Wrap(index + delta); // No se puede jugar contra uno mismo.
+            if (home) GameOptions.HomeTeamIndex = index;
+            else GameOptions.AwayTeamIndex = index;
+            RefreshTeams();
+            RefreshOptions();
+        }
+
+        private void RefreshTeams()
+        {
+            FillSlot(homeSlot, GameOptions.HomeTeamIndex);
+            FillSlot(awaySlot, GameOptions.AwayTeamIndex);
+        }
+
+        private static void FillSlot(TeamSlot slot, int index)
+        {
+            TeamSettings team = TeamCatalog.Create(index);
+            slot.Crest.sprite = UISprites.Crest(team.primaryColor, team.secondaryColor);
+            slot.Name.text = team.teamName.ToUpperInvariant();
+            slot.Ratings.text = $"MEDIA {team.Overall}";
+            int[] values = { team.attack, team.midfield, team.defense };
+            for (int i = 0; i < 3; i++)
+            {
+                float t = Mathf.InverseLerp(60f, 90f, values[i]);
+                var rect = (RectTransform)slot.Bars[i].transform;
+                rect.anchorMax = new Vector2(Mathf.Lerp(0.15f, 1f, t), 1f);
+                slot.Bars[i].color = Color.Lerp(UITheme.Gold, UITheme.Accent, t);
+            }
+            Object.Destroy(team);
         }
 
         private void BuildOptions(Transform root)
@@ -173,7 +244,8 @@ namespace FutbolTotal
             UIFactory.SetButtonText(optionButtons[3], $"Volumen          <  {Mathf.RoundToInt(GameOptions.Volume * 100f)} %  >");
             if (matchInfo != null)
             {
-                matchInfo.text = $"ESTADIO AURORA  ·  {halfText} POR PARTE  ·  DIFICULTAD {GameOptions.Describe(GameOptions.Difficulty).ToUpperInvariant()}";
+                matchInfo.text = $"{TeamCatalog.Stadium(GameOptions.HomeTeamIndex).ToUpperInvariant()}  ·  {halfText} POR PARTE  ·  " +
+                                 $"DIFICULTAD {GameOptions.Describe(GameOptions.Difficulty).ToUpperInvariant()}";
             }
         }
 

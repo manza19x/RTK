@@ -157,6 +157,7 @@ namespace FutbolTotal
 
             bool hasBall = player != null && player.HasBall;
             float maxSpeed = IsSprinting ? settings.sprintSpeed : settings.jogSpeed;
+            if (player != null && player.Team != null) maxSpeed *= player.Team.Strength.SpeedFactor;
             if (hasBall) maxSpeed *= settings.withBallSpeedMultiplier;
             if (Time.time < slowedUntil) maxSpeed *= settings.actionSlowdownMultiplier;
 

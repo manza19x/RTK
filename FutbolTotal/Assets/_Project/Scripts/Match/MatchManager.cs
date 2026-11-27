@@ -186,7 +186,7 @@ namespace FutbolTotal
             context.Ball.ResetTo(context.Pitch.Center);
             LockPlayers(true);
             SetHumanInput(false);
-            ShowMessage($"{context.HomeTeam.Settings.teamName} vs {context.AwayTeam.Settings.teamName}\nPulsa J / A para empezar", float.PositiveInfinity, MessageStyle.Banner);
+            ShowMessage($"{context.HomeTeam.Settings.teamName} vs {context.AwayTeam.Settings.teamName}\n{context.HomeTeam.Settings.stadium}\nPulsa J / A para empezar", float.PositiveInfinity, MessageStyle.Banner);
             if (matchCamera != null) matchCamera.SnapToTarget();
         }
 

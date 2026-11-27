@@ -15,10 +15,17 @@ namespace FutbolTotal
         [SerializeField] private TeamSide side = TeamSide.Home;
         [Tooltip("+1: ataca hacia +X. -1: ataca hacia -X. Se invertirá en el descanso (Fase 2).")]
         [SerializeField] private int attackDirection = 1;
+        [Tooltip("Usar los equipos elegidos en el menú principal (catálogo). Desactivado: usa el asset de TeamSettings.")]
+        [SerializeField] private bool useCatalog = true;
+
+        private static TeamSettings resolvedHome, resolvedAway;
+        private static int resolvedFrame = -1;
 
         private readonly List<FootballPlayer> players = new List<FootballPlayer>();
 
         public TeamSettings Settings => settings;
+        /// <summary>Efecto de las valoraciones del equipo en el juego.</summary>
+        public TeamStrength Strength { get; private set; }
         public FormationSettings Formation => formation;
         public TeamSide Side => side;
         public int AttackDirection => attackDirection;
@@ -52,8 +59,14 @@ namespace FutbolTotal
         private void Awake()
         {
             EnsureSettings();
+            Strength = new TeamStrength(settings);
             GetComponentsInChildren(true, players);
             foreach (FootballPlayer player in players) player.Initialize(this);
+        }
+
+        private void Start()
+        {
+            KitPainter.Apply(this);
         }
 
         /// <summary>
@@ -62,6 +75,17 @@ namespace FutbolTotal
         /// </summary>
         private void EnsureSettings()
         {
+            // Equipos elegidos en el menú (catálogo). Se resuelven una vez por escena para los dos equipos a la vez,
+            // así el visitante puede cambiar a su segunda equipación si choca con el local.
+            if (useCatalog)
+            {
+                if (resolvedFrame != Time.frameCount || resolvedHome == null)
+                {
+                    TeamCatalog.Resolve(out resolvedHome, out resolvedAway);
+                    resolvedFrame = Time.frameCount;
+                }
+                settings = side == TeamSide.Home ? resolvedHome : resolvedAway;
+            }
             if (settings == null)
             {
                 settings = SettingsProvider.Load<TeamSettings>(

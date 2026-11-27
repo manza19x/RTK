@@ -158,7 +158,8 @@ namespace FutbolTotal
                 FootballPlayer owner = ball.Owner;
                 bool rivalHasBall = owner != null && owner.Team != player.Team &&
                                     !AIQueries.IsProtectedKeeper(owner, context.Pitch); // Portero con el balón en las manos.
-                if (rivalHasBall && KickMath.FlatDistance(player.Position, ball.Position) <= settings.tackleReach)
+                float reach = settings.tackleReach * player.Team.Strength.TackleReachFactor;
+                if (rivalHasBall && KickMath.FlatDistance(player.Position, ball.Position) <= reach)
                 {
                     if (tackleFromBehind)
                     {

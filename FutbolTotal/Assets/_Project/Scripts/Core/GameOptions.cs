@@ -16,6 +16,22 @@ namespace FutbolTotal
         private const string DifficultyKey = "FutbolTotal.Difficulty";
         private const string AssistKey = "FutbolTotal.PassAssist";
         private const string VolumeKey = "FutbolTotal.Volume";
+        private const string HomeTeamKey = "FutbolTotal.HomeTeam";
+        private const string AwayTeamKey = "FutbolTotal.AwayTeam";
+
+        /// <summary>Índice en <see cref="TeamCatalog"/> del equipo del jugador (local).</summary>
+        public static int HomeTeamIndex
+        {
+            get => PlayerPrefs.GetInt(HomeTeamKey, 0);
+            set => Save(HomeTeamKey, value);
+        }
+
+        /// <summary>Índice en <see cref="TeamCatalog"/> del rival (visitante).</summary>
+        public static int AwayTeamIndex
+        {
+            get => PlayerPrefs.GetInt(AwayTeamKey, 1);
+            set => Save(AwayTeamKey, value);
+        }
 
         /// <summary>Volumen general (0..1), en pasos de 25 %.</summary>
         public static float Volume

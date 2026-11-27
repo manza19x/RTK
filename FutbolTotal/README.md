@@ -3,8 +3,8 @@
 Prototipo jugable y ampliable de fútbol en 3D: un partido entre dos equipos ficticios, con control
 de teclado o mando, compañeros y rivales con IA, marcador, cronómetro y menús.
 
-> **Estado actual: Fase 9 (interfaz profesional) implementada.** Las Fases 1, 2 y 3 se han probado en Unity y funcionan.
-> Las Fases 4 a 9 compilan sin errores, pero **no se han ejecutado dentro del editor de Unity** (en el entorno de
+> **Estado actual: Fase 10 (20 equipos para elegir) implementada.** Las Fases 1, 2 y 3 se han probado en Unity y funcionan.
+> Las Fases 4 a 10 compilan sin errores, pero **no se han ejecutado dentro del editor de Unity** (en el entorno de
 > desarrollo no había Unity disponible). Hasta que se ejecuten las listas de pruebas de [`docs/Fase4.md`](docs/Fase4.md),
 > [`docs/Fase5.md`](docs/Fase5.md), [`docs/Fase6.md`](docs/Fase6.md) y [`docs/Fase7.md`](docs/Fase7.md) no hay que dar por hecho que funcionan.
 
@@ -174,6 +174,7 @@ Escena `MenuPrincipal`: el campo (sin jugadores), `Main Camera` con `MenuCameraO
 | **7. Personaje de Mixamo** | Importación automática de un personaje humanoide y 8 animaciones de Mixamo (puestas por el jugador), Animator con mezcla de locomoción y acciones, equipación teñida por equipo; si no hay modelo, se usa el cuerpo de la Fase 6 | **Hecha (pendiente de prueba en Unity)** |
 | **8. Pulido** | Pasos sincronizados con la velocidad (sin patinar), dorsales en la espalda, repetición de los goles a cámara lenta con cámara a pie de campo | **Hecha (pendiente de prueba en Unity)** |
 | **9. Interfaz profesional** | Estilo de retransmisión: fuente deportiva, paneles redondeados, escudos generados, marcador de TV, radar, avisos/tarjetas/celebración de gol, menú principal, pausa y resultado rediseñados | **Hecha (pendiente de prueba en Unity)** |
+| **10. Equipos** | 20 clubes ficticios con colores, escudo, estadio y valoraciones (ataque, medio, defensa) que influyen moderadamente en el juego; selector en el menú; equipaciones pintadas al empezar y segunda equipación si chocan | **Hecha (pendiente de prueba en Unity)** |
 
 > La cámara básica se adelanta a la Fase 1 porque sin ella no se puede probar el movimiento, que además es
 > relativo a la cámara. La IA va después de las reglas porque necesita saber en qué estado está el partido
