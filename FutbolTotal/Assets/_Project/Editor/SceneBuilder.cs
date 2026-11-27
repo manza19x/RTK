@@ -52,6 +52,10 @@ namespace FutbolTotal.EditorTools
             // Versión visual mejorada (Fase 6).
             public Material Concrete, Seats, Roof, Board, Tower, Lamp, Boots, Sky;
             public Material[] Skins, Hairs;
+
+            // Personaje importado de Mixamo (Fase 7). Null si no hay modelo: se usa el cuerpo generado.
+            public CharacterSettings Character;
+            public MixamoSetup.Result Mixamo;
         }
 
         [MenuItem("Fútbol Total/Crear todas las escenas", priority = 0)]
@@ -251,6 +255,7 @@ namespace FutbolTotal.EditorTools
                 Match = LoadOrCreateSettings<MatchSettings>(SettingsPath(SettingsProvider.MatchName), null),
                 AI = LoadOrCreateSettings<AISettings>(SettingsPath(SettingsProvider.AIName), null),
                 Sound = LoadOrCreateSettings<SoundSettings>(SettingsPath(SettingsProvider.SoundName), null),
+                Character = LoadOrCreateSettings<CharacterSettings>(SettingsPath(SettingsProvider.CharacterName), null),
                 Formation = LoadOrCreateSettings<FormationSettings>(SettingsPath(SettingsProvider.FormationName),
                                                                     f => f.FillDefaultSevenASide()),
                 // Equipos ficticios con nombres y colores originales.
@@ -274,6 +279,7 @@ namespace FutbolTotal.EditorTools
 
 
             CreateVisualAssets(a);
+            a.Mixamo = MixamoSetup.Prepare(a.Character);
             a.GoalFrame = LoadOrCreateMaterial(MaterialsFolder, "M_GoalFrame", Color.white, smoothness: 0.6f);
             a.Indicator = LoadOrCreateMaterial(MaterialsFolder, "M_SelectionIndicator", new Color(1f, 0.9f, 0.2f), unlit: true);
             a.Skin = LoadOrCreateMaterial(MaterialsFolder, "M_Skin", new Color(0.85f, 0.68f, 0.52f));
@@ -658,9 +664,18 @@ namespace FutbolTotal.EditorTools
             SetInt(player, "formationIndex", index);
             SetReference(player, "bodyCollider", capsule);
 
-            // Cuerpo articulado (cadera, torso, brazos, piernas) animado por PlayerAnimator.
             var visual = new GameObject("Visual").transform;
             visual.SetParent(go.transform, false);
+
+            // Personaje de Mixamo si está preparado (equipación teñida con el color del equipo o del portero).
+            if (a.Mixamo != null && MixamoSetup.AttachTo(visual, a.Mixamo, kit.color, kit.name, a.Character))
+            {
+                var bridge = go.AddComponent<HumanoidAnimatorBridge>();
+                SetBool(bridge, "diveClipGoesRight", a.Character.diveClipGoesRight);
+                return;
+            }
+
+            // Si no, cuerpo articulado (cadera, torso, brazos, piernas) animado por PlayerAnimator.
             PlayerRigBuilder.Build(visual, new PlayerRigMaterials
             {
                 Shirt = kit,

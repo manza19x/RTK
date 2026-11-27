@@ -20,6 +20,7 @@ namespace FutbolTotal
         public const string MatchName = "MatchSettings";
         public const string AIName = "AISettings";
         public const string SoundName = "SoundSettings";
+        public const string CharacterName = "CharacterSettings";
         public const string FormationName = "Formation_2-3-1";
         public const string HomeTeamName = "Team_ClubAurora";
         public const string AwayTeamName = "Team_DeportivoMarea";

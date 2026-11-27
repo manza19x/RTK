@@ -287,6 +287,15 @@ namespace FutbolTotal.EditorTools
             serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
+        public static void SetBool(Object target, string field, bool value)
+        {
+            var serialized = new SerializedObject(target);
+            SerializedProperty property = Find(serialized, field);
+            if (property == null) return;
+            property.boolValue = value;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+        }
+
         // ------------------------------------------------------------------ Geometría
 
         /// <summary>Primitiva solo visual (sin collider).</summary>
