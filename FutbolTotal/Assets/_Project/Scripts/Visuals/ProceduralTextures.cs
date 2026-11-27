@@ -213,6 +213,57 @@ namespace FutbolTotal
             return faces.ToArray();
         }
 
+        // ------------------------------------------------------------------ Dorsales
+
+        /// <summary>Cifras de 5×7 celdas (fuente tipo marcador), de arriba abajo.</summary>
+        private static readonly string[][] Digits =
+        {
+            new[] { "01110", "10001", "10011", "10101", "11001", "10001", "01110" },
+            new[] { "00100", "01100", "00100", "00100", "00100", "00100", "01110" },
+            new[] { "01110", "10001", "00001", "00010", "00100", "01000", "11111" },
+            new[] { "11110", "00001", "00001", "01110", "00001", "00001", "11110" },
+            new[] { "00010", "00110", "01010", "10010", "11111", "00010", "00010" },
+            new[] { "11111", "10000", "11110", "00001", "00001", "10001", "01110" },
+            new[] { "00110", "01000", "10000", "11110", "10001", "10001", "01110" },
+            new[] { "11111", "00001", "00010", "00100", "01000", "01000", "01000" },
+            new[] { "01110", "10001", "10001", "01110", "10001", "10001", "01110" },
+            new[] { "01110", "10001", "10001", "01111", "00001", "00010", "01100" },
+        };
+
+        /// <summary>Dorsal blanco sobre fondo transparente (el color final lo pone el material).</summary>
+        public static Texture2D ShirtNumber(int number, int size = 128)
+        {
+            string text = Mathf.Clamp(number, 0, 99).ToString();
+            int columns = text.Length * 5 + (text.Length - 1);
+            int cell = Mathf.Max(1, Mathf.FloorToInt(Mathf.Min(size * 0.9f / columns, size * 0.9f / 7f)));
+            int offsetX = (size - columns * cell) / 2;
+            int offsetY = (size - 7 * cell) / 2;
+
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, true);
+            var pixels = new Color[size * size];
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = new Color(1f, 1f, 1f, 0f);
+
+            for (int d = 0; d < text.Length; d++)
+            {
+                string[] glyph = Digits[text[d] - '0'];
+                for (int row = 0; row < 7; row++)
+                {
+                    for (int col = 0; col < 5; col++)
+                    {
+                        if (glyph[row][col] != '1') continue;
+                        int x0 = offsetX + (d * 6 + col) * cell;
+                        int y0 = offsetY + (6 - row) * cell; // la fila 0 es la de arriba
+                        for (int y = y0; y < y0 + cell; y++)
+                            for (int x = x0; x < x0 + cell; x++)
+                                pixels[y * size + x] = Color.white;
+                    }
+                }
+            }
+            texture.SetPixels(pixels);
+            texture.Apply(true);
+            return texture;
+        }
+
         // ------------------------------------------------------------------ Vallas
 
         /// <summary>Valla publicitaria inventada (franjas diagonales y degradado; sin marcas).</summary>

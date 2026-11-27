@@ -18,6 +18,7 @@ namespace FutbolTotal
         public const string DiveTrigger = "Dive";
         public const string CelebrateTrigger = "Celebrate";
         public const string MirrorDiveParam = "MirrorDive";
+        public const string LocomotionSpeedParam = "LocoSpeed";
 
         [Tooltip("Ver CharacterSettings.diveClipGoesRight.")]
         [SerializeField] private bool diveClipGoesRight = true;
@@ -30,6 +31,9 @@ namespace FutbolTotal
         private static readonly int DiveHash = Animator.StringToHash(DiveTrigger);
         private static readonly int CelebrateHash = Animator.StringToHash(CelebrateTrigger);
         private static readonly int MirrorHash = Animator.StringToHash(MirrorDiveParam);
+        private static readonly int LocoSpeedHash = Animator.StringToHash(LocomotionSpeedParam);
+
+        private CharacterSettings character;
 
         private FootballPlayer player;
         private Animator animator;
@@ -41,6 +45,7 @@ namespace FutbolTotal
         {
             player = GetComponent<FootballPlayer>();
             animator = GetComponentInChildren<Animator>();
+            character = SettingsProvider.Load<CharacterSettings>(SettingsProvider.CharacterName);
             if (animator != null)
             {
                 animator.applyRootMotion = false;
@@ -68,7 +73,9 @@ namespace FutbolTotal
         {
             if (animator == null) return;
             PlayerMotor motor = player.Motor;
-            animator.SetFloat(SpeedHash, motor.Speed / Mathf.Max(0.1f, motor.SprintSpeed), speedDamping, Time.deltaTime);
+            float speed01 = motor.Speed / Mathf.Max(0.1f, motor.SprintSpeed);
+            animator.SetFloat(SpeedHash, speed01, speedDamping, Time.deltaTime);
+            animator.SetFloat(LocoSpeedHash, LocomotionPlayback(motor.Speed, speed01), speedDamping, Time.deltaTime);
 
             bool lunging = motor.IsLunging;
             if (lunging && !wasLunging)
@@ -85,6 +92,20 @@ namespace FutbolTotal
                 }
             }
             wasLunging = lunging;
+        }
+
+        /// <summary>
+        /// Multiplicador de reproducción de la locomoción: velocidad real / velocidad a la que "corre" la animación
+        /// mezclada. Así la zancada coincide con el desplazamiento y los pies no patinan.
+        /// </summary>
+        private float LocomotionPlayback(float speed, float speed01)
+        {
+            if (character == null || speed < 0.5f) return 1f;
+            float jogPoint = character.jogBlendPoint;
+            float animationSpeed = speed01 <= jogPoint
+                ? character.jogAnimationSpeed * Mathf.Max(0.35f, speed01 / jogPoint)
+                : Mathf.Lerp(character.jogAnimationSpeed, character.sprintAnimationSpeed, (speed01 - jogPoint) / (1f - jogPoint));
+            return Mathf.Clamp(speed / Mathf.Max(0.1f, animationSpeed), character.playbackRange.x, character.playbackRange.y);
         }
 
         private void OnKicked(KickEvent kick)

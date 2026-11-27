@@ -25,6 +25,7 @@ namespace FutbolTotal.EditorTools
         private const string MaterialsFolder = Root + "/Art/Materials";
         private const string TexturesFolder = Root + "/Art/Textures";
         private const string PhysicsFolder = Root + "/Art/Physics";
+        private const string NumbersFolder = Root + "/Art/Numbers";
         private const string ScenesFolder = Root + "/Scenes";
         // Los nombres de archivo deben coincidir con SceneNames (el juego carga las escenas por nombre).
         private const string MainMenuScenePath = ScenesFolder + "/" + SceneNames.MainMenu + ".unity";
@@ -187,6 +188,7 @@ namespace FutbolTotal.EditorTools
             if (match)
             {
                 matchGo.AddComponent<MatchStats>();
+                matchGo.AddComponent<ReplaySystem>();
                 ui.AddComponent<ResultScreen>();
             }
 
@@ -668,10 +670,20 @@ namespace FutbolTotal.EditorTools
             visual.SetParent(go.transform, false);
 
             // Personaje de Mixamo si está preparado (equipación teñida con el color del equipo o del portero).
-            if (a.Mixamo != null && MixamoSetup.AttachTo(visual, a.Mixamo, kit.color, kit.name, a.Character))
+            Material number = NumberMaterial(slot.shirtNumber, kit.color);
+            if (a.Mixamo != null && MixamoSetup.AttachTo(visual, a.Mixamo, kit.color, kit.name, a.Character, out Transform chest))
             {
                 var bridge = go.AddComponent<HumanoidAnimatorBridge>();
                 SetBool(bridge, "diveClipGoesRight", a.Character.diveClipGoesRight);
+                if (chest != null)
+                {
+                    // Dorsal pegado a la espalda, a la altura del pecho; sigue al hueso al animarse.
+                    Vector3 back = -visual.forward;
+                    GameObject quad = AddNumberQuad(visual, number, 0.26f);
+                    quad.transform.SetPositionAndRotation(chest.position + back * 0.15f + Vector3.up * 0.02f,
+                                                          Quaternion.LookRotation(visual.forward, Vector3.up));
+                    quad.transform.SetParent(chest, true);
+                }
                 return;
             }
 
@@ -686,6 +698,41 @@ namespace FutbolTotal.EditorTools
                 Boots = a.Boots
             });
             go.AddComponent<PlayerAnimator>();
+
+            Transform spine = visual.GetComponentsInChildren<Transform>(true).FirstOrDefault(t => t.name == PlayerRigBones.Spine);
+            if (spine != null)
+            {
+                GameObject quad = AddNumberQuad(spine, number, 0.24f);
+                quad.transform.localPosition = new Vector3(0f, 0.33f, -0.135f);
+                quad.transform.localRotation = Quaternion.identity;
+            }
+        }
+
+        /// <summary>
+        /// Cuadrado con el dorsal. El Quad de Unity se ve desde su -Z: con la rotación del jugador, mira hacia atrás.
+        /// </summary>
+        private static GameObject AddNumberQuad(Transform parent, Material material, float size)
+        {
+            GameObject quad = CreateVisual(PrimitiveType.Quad, "ShirtNumber", parent, Vector3.zero, Vector3.one * size, material);
+            var renderer = quad.GetComponent<MeshRenderer>();
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            return quad;
+        }
+
+        /// <summary>Material del dorsal: blanco sobre camisetas oscuras, casi negro sobre claras.</summary>
+        private static Material NumberMaterial(int number, Color kitColor)
+        {
+            EnsureFolder(NumbersFolder);
+            Texture2D texture = LoadOrCreateTexture($"{NumbersFolder}/Num_{number}.png", () => ProceduralTextures.ShirtNumber(number));
+            float luminance = kitColor.r * 0.3f + kitColor.g * 0.59f + kitColor.b * 0.11f;
+            bool dark = luminance > 0.6f;
+            return LoadOrCreateMaterial(NumbersFolder, $"M_Num_{number}_{(dark ? "Dark" : "Light")}", new MaterialSpec
+            {
+                Albedo = texture,
+                Color = dark ? new Color(0.08f, 0.08f, 0.1f) : new Color(0.97f, 0.97f, 0.97f),
+                Smoothness = 0.3f,
+                AlphaClip = true
+            });
         }
 
         private static MatchCamera BuildCamera(Assets a, HumanTeamController human)

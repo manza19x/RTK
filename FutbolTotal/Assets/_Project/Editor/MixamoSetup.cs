@@ -254,6 +254,12 @@ namespace FutbolTotal.EditorTools
 
             controller.AddParameter(HumanoidAnimatorBridge.SpeedParam, AnimatorControllerParameterType.Float);
             controller.AddParameter(HumanoidAnimatorBridge.MirrorDiveParam, AnimatorControllerParameterType.Bool);
+            controller.AddParameter(new AnimatorControllerParameter
+            {
+                name = HumanoidAnimatorBridge.LocomotionSpeedParam,
+                type = AnimatorControllerParameterType.Float,
+                defaultFloat = 1f
+            });
             foreach (var clip in Clips)
             {
                 if (clip.trigger != null) controller.AddParameter(clip.trigger, AnimatorControllerParameterType.Trigger);
@@ -273,6 +279,8 @@ namespace FutbolTotal.EditorTools
             tree.AddChild(jog, settings.jogBlendPoint);
             tree.AddChild(sprint, 1f);
             machine.defaultState = locomotion;
+            locomotion.speedParameterActive = true;
+            locomotion.speedParameter = HumanoidAnimatorBridge.LocomotionSpeedParam;
 
             // Acciones: desde cualquier estado al recibir su trigger; vuelven a la locomoción al acabar.
             foreach (var clip in Clips)
@@ -306,8 +314,10 @@ namespace FutbolTotal.EditorTools
         /// Coloca el modelo bajo <paramref name="visual"/>, lo escala a la altura deseada, le pone el Animator
         /// y tiñe la equipación. Devuelve false si no se pudo.
         /// </summary>
-        public static bool AttachTo(Transform visual, Result result, Color kitColor, string variant, CharacterSettings settings)
+        public static bool AttachTo(Transform visual, Result result, Color kitColor, string variant, CharacterSettings settings,
+                                    out Transform chest)
         {
+            chest = null;
             var instance = (GameObject)PrefabUtility.InstantiatePrefab(result.Model, visual);
             if (instance == null) return false;
             instance.name = "Model";
@@ -337,6 +347,12 @@ namespace FutbolTotal.EditorTools
             animator.runtimeAnimatorController = result.Controller;
             animator.applyRootMotion = false;
             animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+            if (animator.isHuman)
+            {
+                chest = animator.GetBoneTransform(HumanBodyBones.UpperChest);
+                if (chest == null) chest = animator.GetBoneTransform(HumanBodyBones.Chest);
+                if (chest == null) chest = animator.GetBoneTransform(HumanBodyBones.Spine);
+            }
             return true;
         }
 

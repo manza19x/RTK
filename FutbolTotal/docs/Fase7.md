@@ -43,3 +43,17 @@ Modificados: `Editor/SceneBuilder.cs` (usa el modelo si existe), `Editor/EditorA
 - [ ] Al pasar y al tirar hacen su animación; al entrar, la plancha; el portero se estira hacia el lado correcto.
 - [ ] Al marcar, el equipo celebra.
 - [ ] Si el portero se estira hacia el lado contrario: en `CharacterSettings` cambia `diveClipGoesRight` y vuelve a crear las escenas.
+
+## Mejoras posteriores (Fase 8: pulido)
+
+| Mejora | Cómo funciona |
+|---|---|
+| **Pasos sincronizados** | El estado de locomoción del Animator tiene un multiplicador de velocidad (`LocoSpeed`). `HumanoidAnimatorBridge` lo calcula como velocidad real / velocidad de la animación mezclada (trote 3,4 m/s y sprint 6,8 m/s por defecto, en `CharacterSettings`), limitado entre 0,7 y 1,5. Así los pies no patinan. Si aún patinan, ajusta `jogAnimationSpeed` y `sprintAnimationSpeed`. |
+| **Dorsales** | Número generado por código (`ProceduralTextures.ShirtNumber`, fuente de marcador 5×7) en un cuadrado recortado pegado a la espalda: en Shannon va unido al hueso del pecho y se mueve con la animación. Blanco sobre camisetas oscuras, casi negro sobre las claras (porteros). Texturas y materiales en `Art/Numbers`. |
+| **Repetición de goles** | `ReplaySystem` graba 30 veces por segundo la posición y rotación de jugadores, articulaciones y balón (6 s). Al marcar, a los 1,3 s reproduce los 3,5 s anteriores al gol y 0,8 s posteriores a media velocidad, con una cámara baja que sigue al balón. Aviso «REPETICIÓN» en pantalla; J / A la salta. El saque inicial espera a que termine. |
+
+Pruebas:
+- [ ] Al trotar y esprintar los pies acompañan al desplazamiento (sin patinar ni ir a cámara rápida).
+- [ ] Cada jugador lleva su dorsal en la espalda (1, 2, 4, 7, 8, 9, 11); los porteros, en oscuro.
+- [ ] Tras un gol aparece «REPETICIÓN», se ve la jugada a cámara lenta desde abajo y luego se saca de centro.
+- [ ] J / A durante la repetición la salta.

@@ -24,6 +24,7 @@ namespace FutbolTotal
         private GameObject chargeRoot, bannerRoot, controlsPanel;
         private CanvasGroup bannerGroup;
         private Button controlsClose;
+        private ReplaySystem replay;
 
         private void Start()
         {
@@ -36,6 +37,7 @@ namespace FutbolTotal
             }
             status = context.Rules;
             manager = status as MatchManager;
+            replay = Object.FindFirstObjectByType<ReplaySystem>();
             Build();
         }
 
@@ -167,6 +169,13 @@ namespace FutbolTotal
 
         private void UpdateBanner()
         {
+            if (replay != null && replay.IsReplaying)
+            {
+                bannerRoot.SetActive(true);
+                bannerGroup.alpha = 0.85f;
+                banner.text = "<color=#FF5050>●</color> REPETICIÓN\n<size=26>J / A para saltar</size>";
+                return;
+            }
             bool fullTime = manager != null && manager.State == MatchState.FullTime;
             bool active = status != null && !status.IsPaused && !fullTime &&
                           !string.IsNullOrEmpty(status.Message) && Time.unscaledTime < status.MessageUntil;

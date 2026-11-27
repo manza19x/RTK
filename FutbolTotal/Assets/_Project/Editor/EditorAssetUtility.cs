@@ -164,6 +164,8 @@ namespace FutbolTotal.EditorTools
             public Texture2D EmissionMap;
             public bool DoubleSided;
             public bool Unlit;
+            /// <summary>Recorta los píxeles transparentes de la textura (dorsales, calcomanías).</summary>
+            public bool AlphaClip;
         }
 
         /// <summary>Material con textura, relieve, emisión o doble cara (si ya existe, se reutiliza sin tocarlo).</summary>
@@ -198,6 +200,15 @@ namespace FutbolTotal.EditorTools
                 material.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
             }
             if (spec.DoubleSided && material.HasProperty("_Cull")) material.SetFloat("_Cull", 0f);
+            if (spec.AlphaClip)
+            {
+                if (material.HasProperty("_AlphaClip")) material.SetFloat("_AlphaClip", 1f);
+                if (material.HasProperty("_Mode")) material.SetFloat("_Mode", 1f); // Standard: Cutout
+                if (material.HasProperty("_Cutoff")) material.SetFloat("_Cutoff", 0.5f);
+                material.EnableKeyword("_ALPHATEST_ON");
+                material.SetOverrideTag("RenderType", "TransparentCutout");
+                material.renderQueue = (int)RenderQueue.AlphaTest;
+            }
             material.enableInstancing = true;
             AssetDatabase.CreateAsset(material, path);
             return material;

@@ -24,6 +24,7 @@ namespace FutbolTotal
         private int initialHomeDirection = 1;
         private Team firstHalfKickoffTeam;
         private Team lastScorer;
+        private ReplaySystem replay;
         private float stateEndsAt;
         private float aiRestartAt;
         private bool humanInputAllowed;
@@ -107,6 +108,7 @@ namespace FutbolTotal
             }
 
             initialHomeDirection = context.HomeTeam.AttackDirection;
+            replay = UnityEngine.Object.FindFirstObjectByType<ReplaySystem>();
             foreach (GoalZone goal in goals)
             {
                 if (goal != null) goal.Scored += OnGoal;
@@ -151,7 +153,8 @@ namespace FutbolTotal
                     break;
 
                 case MatchState.GoalCelebration:
-                    if (Time.time >= stateEndsAt) AfterGoal();
+                    // Si hay repetición, se espera a que termine (o a que el jugador la salte).
+                    if (Time.time >= stateEndsAt && (replay == null || !replay.IsBusy)) AfterGoal();
                     break;
 
                 case MatchState.HalfTime:

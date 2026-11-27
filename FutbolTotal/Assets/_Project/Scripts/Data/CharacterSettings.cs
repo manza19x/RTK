@@ -28,5 +28,13 @@ namespace FutbolTotal
 
         [Tooltip("Velocidad (fracción del sprint) a la que suena la animación de trote en la mezcla.")]
         [Range(0.2f, 0.9f)] public float jogBlendPoint = 0.6f;
+
+        [Header("Sincronizar pasos (evita que los pies patinen)")]
+        [Tooltip("Velocidad (m/s) a la que corresponde la animación de trote reproducida a velocidad normal.")]
+        public float jogAnimationSpeed = 3.4f;
+        [Tooltip("Velocidad (m/s) a la que corresponde la animación de sprint reproducida a velocidad normal.")]
+        public float sprintAnimationSpeed = 6.8f;
+        [Tooltip("Límites del ajuste de velocidad de la animación.")]
+        public Vector2 playbackRange = new Vector2(0.7f, 1.5f);
     }
 }
