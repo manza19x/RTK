@@ -50,7 +50,7 @@ namespace FutbolTotal
         {
             team = GetComponent<Team>();
             if (input == null) input = GetComponent<FootballInput>();
-            if (actionSettings == null) actionSettings = ScriptableObject.CreateInstance<ActionSettings>();
+            actionSettings = SettingsProvider.Resolve(actionSettings, SettingsProvider.ActionsName, this);
         }
 
         private void Start()

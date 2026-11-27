@@ -66,7 +66,7 @@ Principios:
   objetos en la escena. Son deterministas (salvo el margen de error del tiro, que siempre se explica por factores visibles).
 - **Eventos en lugar de sondeo**: `Ball.OwnerChanged`, `Ball.Kicked`, `GoalZone.Scored`. Las reglas del partido,
   la cámara y la interfaz se suscriben sin que el balón sepa que existen.
-- **Parámetros en ScriptableObjects** (`Assets/_Project/Settings`), editables en el Inspector incluso en Play.
+- **Parámetros en ScriptableObjects** (`Assets/_Project/Resources/FutbolTotal`), editables en el Inspector incluso en Play. `SettingsProvider` los carga por nombre si un componente no tiene uno asignado.
 
 ---
 
@@ -75,7 +75,7 @@ Principios:
 ```
 Assets/_Project/
 ├── Scripts/                      (FutbolTotal.Runtime.asmdef)
-│   ├── Core/          MatchContext
+│   ├── Core/          MatchContext, SettingsProvider
 │   ├── Data/          FootballEnums, PlayerMovementSettings, BallSettings, ActionSettings,
 │   │                  CameraSettings, TeamSettings, FormationSettings
 │   ├── Controls/      FootballInput, ChargeButton, HumanTeamController
@@ -91,7 +91,7 @@ Assets/_Project/
 ├── Editor/                       (FutbolTotal.Editor.asmdef)
 │   ├── EditorAssetUtility.cs
 │   └── Phase1SceneBuilder.cs     menú «Fútbol Total ▸ Crear escena de entrenamiento (Fase 1)»
-├── Settings/   (generado)  assets de ajustes, equipos y formación
+├── Resources/FutbolTotal/ (generado) assets de ajustes, equipos y formación
 ├── Art/        (generado)  Materials/, Textures/, Physics/
 └── Scenes/     (generado)  Fase1_Entrenamiento.unity
 ```

@@ -56,9 +56,22 @@ namespace FutbolTotal
             foreach (FootballPlayer player in players) player.Initialize(this);
         }
 
-        /// <summary>Si faltan los assets de equipo o formación, usa valores por defecto para que el partido funcione.</summary>
+        /// <summary>
+        /// Asegura los ajustes de equipo y formación: asignados en el Inspector, compartidos en Resources
+        /// (ver <see cref="SettingsProvider"/>) o, si no hay ninguno, valores por defecto.
+        /// </summary>
         private void EnsureSettings()
         {
+            if (settings == null)
+            {
+                settings = SettingsProvider.Load<TeamSettings>(
+                    side == TeamSide.Home ? SettingsProvider.HomeTeamName : SettingsProvider.AwayTeamName);
+            }
+            if (formation == null)
+            {
+                formation = SettingsProvider.Load<FormationSettings>(SettingsProvider.FormationName);
+            }
+
             if (settings == null)
             {
                 Debug.LogWarning($"[Fútbol Total] {name}: falta TeamSettings; se usan valores por defecto.", this);

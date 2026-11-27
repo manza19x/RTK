@@ -20,11 +20,7 @@ namespace FutbolTotal
 
         private void Awake()
         {
-            if (settings == null)
-            {
-                Debug.LogWarning("[Fútbol Total] PlayerStamina sin PlayerMovementSettings asignado: se usan valores por defecto.", this);
-                settings = ScriptableObject.CreateInstance<PlayerMovementSettings>();
-            }
+            settings = SettingsProvider.Resolve(settings, SettingsProvider.MovementName, this);
         }
 
         /// <summary>Lo llama <see cref="PlayerMotor"/> en cada paso de física.</summary>

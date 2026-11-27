@@ -27,11 +27,7 @@ namespace FutbolTotal
         private void Awake()
         {
             player = GetComponent<FootballPlayer>();
-            if (settings == null)
-            {
-                Debug.LogWarning("[Fútbol Total] PlayerActions sin ActionSettings asignado: se usan valores por defecto.", this);
-                settings = ScriptableObject.CreateInstance<ActionSettings>();
-            }
+            settings = SettingsProvider.Resolve(settings, SettingsProvider.ActionsName, this);
         }
 
         // ---------------------------------------------------------------- Pases

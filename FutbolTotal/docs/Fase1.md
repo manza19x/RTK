@@ -55,7 +55,7 @@ Todos nuevos. Rutas relativas a la raíz del proyecto de Unity.
 4. Copia la carpeta `Assets/_Project` de este repositorio dentro de la carpeta `Assets/` de tu proyecto.
    Espera a que Unity compile; la consola no debe mostrar errores.
 5. Menú superior **Fútbol Total ▸ Crear escena de entrenamiento (Fase 1)**. Se crean:
-   - `Assets/_Project/Settings/` con los ajustes, equipos y formación;
+   - `Assets/_Project/Resources/FutbolTotal/` con los ajustes, equipos y formación;
    - `Assets/_Project/Art/` con materiales, textura del balón y materiales físicos;
    - `Assets/_Project/Scenes/Fase1_Entrenamiento.unity` (abierta y añadida a *Build Settings*).
 6. Pulsa **Play**. Para jugar con mando, conéctalo antes o durante la partida.
@@ -120,7 +120,7 @@ Marca cada punto tras comprobarlo. Si algo falla, anota qué hiciste y qué ocur
 
 ## Ajustes rápidos
 
-Todos los valores están en `Assets/_Project/Settings`. Se pueden cambiar durante el Play (los cambios en
+Todos los valores están en `Assets/_Project/Resources/FutbolTotal`. Se pueden cambiar durante el Play (los cambios en
 ScriptableObjects se conservan al salir del Play).
 
 | Si... | Cambia |

@@ -23,11 +23,7 @@ namespace FutbolTotal
         private void Awake()
         {
             cam = GetComponent<Camera>();
-            if (settings == null)
-            {
-                Debug.LogWarning("[Fútbol Total] MatchCamera sin CameraSettings asignado: se usan valores por defecto.", this);
-                settings = ScriptableObject.CreateInstance<CameraSettings>();
-            }
+            settings = SettingsProvider.Resolve(settings, SettingsProvider.CameraName, this);
             cam.fieldOfView = settings.fieldOfView;
         }
 

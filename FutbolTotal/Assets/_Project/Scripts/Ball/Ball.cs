@@ -68,11 +68,7 @@ namespace FutbolTotal
         {
             body = GetComponent<Rigidbody>();
             sphere = GetComponent<SphereCollider>();
-            if (settings == null)
-            {
-                Debug.LogWarning("[Fútbol Total] Ball sin BallSettings asignado: se usan valores por defecto.", this);
-                settings = ScriptableObject.CreateInstance<BallSettings>();
-            }
+            settings = SettingsProvider.Resolve(settings, SettingsProvider.BallName, this);
 
             sphere.radius = settings.radius;
             body.mass = settings.mass;

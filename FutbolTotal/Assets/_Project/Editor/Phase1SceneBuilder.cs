@@ -18,7 +18,9 @@ namespace FutbolTotal.EditorTools
     public static class Phase1SceneBuilder
     {
         private const string Root = "Assets/_Project";
-        private const string SettingsFolder = Root + "/Settings";
+        // Los ajustes viven en una carpeta Resources para que el juego pueda cargarlos por nombre (SettingsProvider).
+        private const string SettingsFolder = Root + "/Resources/" + SettingsProvider.ResourcesFolder;
+        private const string LegacySettingsFolder = Root + "/Settings";
         private const string MaterialsFolder = Root + "/Art/Materials";
         private const string TexturesFolder = Root + "/Art/Textures";
         private const string PhysicsFolder = Root + "/Art/Physics";
@@ -103,7 +105,7 @@ namespace FutbolTotal.EditorTools
             else
             {
                 Debug.LogError($"[Fútbol Total] Escena creada, pero {missing} referencias a assets de ajustes están vacías. " +
-                               "Comprueba que los assets de Assets/_Project/Settings se ven bien en el Inspector.");
+                               "El juego los cargará igualmente desde Assets/_Project/Resources/FutbolTotal.");
             }
         }
 
@@ -138,20 +140,21 @@ namespace FutbolTotal.EditorTools
         private static Assets CreateAssets()
         {
             EnsureFolder(SettingsFolder);
+            MigrateLegacySettings();
             EnsureFolder(MaterialsFolder);
             EnsureFolder(TexturesFolder);
             EnsureFolder(PhysicsFolder);
 
             var a = new Assets
             {
-                Movement = LoadOrCreateSettings<PlayerMovementSettings>(SettingsFolder + "/PlayerMovementSettings.asset", null),
-                Ball = LoadOrCreateSettings<BallSettings>(SettingsFolder + "/BallSettings.asset", null),
-                Actions = LoadOrCreateSettings<ActionSettings>(SettingsFolder + "/ActionSettings.asset", null),
-                Camera = LoadOrCreateSettings<CameraSettings>(SettingsFolder + "/CameraSettings.asset", null),
-                Formation = LoadOrCreateSettings<FormationSettings>(SettingsFolder + "/Formation_2-3-1.asset",
+                Movement = LoadOrCreateSettings<PlayerMovementSettings>(SettingsPath(SettingsProvider.MovementName), null),
+                Ball = LoadOrCreateSettings<BallSettings>(SettingsPath(SettingsProvider.BallName), null),
+                Actions = LoadOrCreateSettings<ActionSettings>(SettingsPath(SettingsProvider.ActionsName), null),
+                Camera = LoadOrCreateSettings<CameraSettings>(SettingsPath(SettingsProvider.CameraName), null),
+                Formation = LoadOrCreateSettings<FormationSettings>(SettingsPath(SettingsProvider.FormationName),
                                                                     f => f.FillDefaultSevenASide()),
                 // Equipos ficticios con nombres y colores originales.
-                Home = LoadOrCreateSettings<TeamSettings>(SettingsFolder + "/Team_ClubAurora.asset", t =>
+                Home = LoadOrCreateSettings<TeamSettings>(SettingsPath(SettingsProvider.HomeTeamName), t =>
                 {
                     t.teamName = "Club Aurora";
                     t.shortName = "AUR";
@@ -159,7 +162,7 @@ namespace FutbolTotal.EditorTools
                     t.secondaryColor = new Color(0.98f, 0.95f, 0.88f);
                     t.goalkeeperColor = new Color(0.95f, 0.8f, 0.15f);
                 }),
-                Away = LoadOrCreateSettings<TeamSettings>(SettingsFolder + "/Team_DeportivoMarea.asset", t =>
+                Away = LoadOrCreateSettings<TeamSettings>(SettingsPath(SettingsProvider.AwayTeamName), t =>
                 {
                     t.teamName = "Deportivo Marea";
                     t.shortName = "MAR";
@@ -203,6 +206,35 @@ namespace FutbolTotal.EditorTools
 
             AssetDatabase.SaveAssets();
             return a;
+        }
+
+        private static string SettingsPath(string assetName) => $"{SettingsFolder}/{assetName}.asset";
+
+        /// <summary>
+        /// Versiones anteriores guardaban los ajustes en _Project/Settings. Se mueven a Resources conservando
+        /// los valores que se hubieran cambiado a mano.
+        /// </summary>
+        private static void MigrateLegacySettings()
+        {
+            if (!AssetDatabase.IsValidFolder(LegacySettingsFolder)) return;
+            string[] names =
+            {
+                SettingsProvider.MovementName, SettingsProvider.BallName, SettingsProvider.ActionsName,
+                SettingsProvider.CameraName, SettingsProvider.FormationName,
+                SettingsProvider.HomeTeamName, SettingsProvider.AwayTeamName
+            };
+            foreach (string name in names)
+            {
+                string from = $"{LegacySettingsFolder}/{name}.asset";
+                string to = SettingsPath(name);
+                if (AssetDatabase.LoadMainAssetAtPath(from) == null || AssetDatabase.LoadMainAssetAtPath(to) != null) continue;
+                string error = AssetDatabase.MoveAsset(from, to);
+                if (!string.IsNullOrEmpty(error)) Debug.LogWarning($"[Fútbol Total] No se pudo mover {from}: {error}");
+            }
+            if (AssetDatabase.FindAssets(string.Empty, new[] { LegacySettingsFolder }).Length == 0)
+            {
+                AssetDatabase.DeleteAsset(LegacySettingsFolder);
+            }
         }
 
         // ================================================================== Escena
