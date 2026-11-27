@@ -16,6 +16,7 @@ namespace FutbolTotal
         private void Start()
         {
             Time.timeScale = 1f;
+            AudioListener.volume = GameOptions.Volume;
             Build();
             ShowMain();
         }
@@ -45,12 +46,12 @@ namespace FutbolTotal
             UIFactory.Button(main, "Salir", SceneLoader.Quit);
 
             // Opciones.
-            RectTransform options = UIFactory.Anchored("Options", root, new Vector2(0.5f, 0.5f), new Vector2(0f, -110f), new Vector2(900f, 500f));
+            RectTransform options = UIFactory.Anchored("Options", root, new Vector2(0.5f, 0.5f), new Vector2(0f, -120f), new Vector2(900f, 580f));
             UIFactory.AddImage(options, UITheme.Panel);
             optionsPanel = options.gameObject;
             UIFactory.AddText(UIFactory.Anchored("Title", options, new Vector2(0.5f, 1f), new Vector2(0f, -50f), new Vector2(800f, 60f)),
                               "OPCIONES", 44, UITheme.Accent, TextAnchor.MiddleCenter, FontStyle.Bold);
-            RectTransform list = UIFactory.VerticalList("List", options, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(820f, 360f), 16f);
+            RectTransform list = UIFactory.VerticalList("List", options, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(820f, 440f), 16f);
             lengthButton = UIFactory.Button(list, "", null, 800f, 64f, 28);
             lengthButton.onClick.AddListener(() =>
             {
@@ -69,8 +70,14 @@ namespace FutbolTotal
                 GameOptions.PassAssist = Next(GameOptions.PassAssist);
                 RefreshOptions();
             });
+            Button volumeButton = UIFactory.Button(list, "", null, 800f, 64f, 28);
+            volumeButton.onClick.AddListener(() =>
+            {
+                GameOptions.Volume = GameOptions.NextVolume(GameOptions.Volume);
+                RefreshOptions();
+            });
             UIFactory.Button(list, "Volver", ShowMain, 360f, 64f);
-            optionButtons = new[] { lengthButton, difficultyButton, assistButton };
+            optionButtons = new[] { lengthButton, difficultyButton, assistButton, volumeButton };
 
             controlsPanel = ControlsPanel.Build(root, ShowMain, out controlsBack);
             RefreshOptions();
@@ -88,6 +95,7 @@ namespace FutbolTotal
             UIFactory.SetButtonText(optionButtons[0], $"Duración: {GameOptions.Describe(GameOptions.MatchLength)}  ({minutes}:{seconds:00} por parte)");
             UIFactory.SetButtonText(optionButtons[1], $"Dificultad: {GameOptions.Describe(GameOptions.Difficulty)}");
             UIFactory.SetButtonText(optionButtons[2], $"Asistencia de pase: {GameOptions.Describe(GameOptions.PassAssist)}");
+            UIFactory.SetButtonText(optionButtons[3], $"Volumen: {Mathf.RoundToInt(GameOptions.Volume * 100f)} %");
         }
 
         private static T Next<T>(T value) where T : System.Enum

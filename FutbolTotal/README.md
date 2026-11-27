@@ -3,10 +3,10 @@
 Prototipo jugable y ampliable de fútbol en 3D: un partido entre dos equipos ficticios, con control
 de teclado o mando, compañeros y rivales con IA, marcador, cronómetro y menús.
 
-> **Estado actual: las 4 fases están implementadas.** Las Fases 1, 2 y 3 se han probado en Unity y funcionan.
-> La Fase 4 (interfaz, menús y cámara) compila sin errores, pero **no se ha ejecutado dentro del editor de Unity**
-> (en el entorno de desarrollo no había Unity disponible). Hasta que se ejecute la lista de pruebas de
-> [`docs/Fase4.md`](docs/Fase4.md) no hay que dar por hecho que funciona.
+> **Estado actual: Fase 5 (sonido y faltas) implementada.** Las Fases 1, 2 y 3 se han probado en Unity y funcionan.
+> Las Fases 4 y 5 compilan sin errores, pero **no se han ejecutado dentro del editor de Unity** (en el entorno de
+> desarrollo no había Unity disponible). Hasta que se ejecuten las listas de pruebas de [`docs/Fase4.md`](docs/Fase4.md)
+> y [`docs/Fase5.md`](docs/Fase5.md) no hay que dar por hecho que funcionan.
 
 ---
 
@@ -27,6 +27,7 @@ Estas son las decisiones tomadas donde el encargo no lo concretaba. Todas se pue
 | Arte | Formas primitivas y materiales de color liso con nombres claros (`M_Home_Kit`, `M_Ball`...) | Se sustituyen fácilmente por modelos y materiales definitivos. |
 | Identidad | Equipos ficticios **Club Aurora** (rojo) y **Deportivo Marea** (azul) | Sin marcas ni identidades reales. |
 | Interfaz | uGUI **construida por código** al arrancar, con el texto clásico y la fuente integrada | Sin prefabs ni referencias guardadas que se rompan al regenerar escenas, y sin tener que importar los recursos de TextMeshPro. |
+| Sonido | **Generado por código** al arrancar (`ProceduralAudio`) | Sin archivos de audio de terceros; cada clip se puede sustituir por uno grabado. |
 | Espacio de nombres | Todo el código de juego en `FutbolTotal`; el de editor en `FutbolTotal.EditorTools` | Evita choques de nombres (p. ej. una carpeta `Ball` y la clase `Ball`). Las carpetas separan responsabilidades. |
 
 ---
@@ -77,9 +78,10 @@ Principios:
 ```
 Assets/_Project/
 ├── Scripts/                      (FutbolTotal.Runtime.asmdef)
-│   ├── Core/          MatchContext, SettingsProvider, GameOptions, SceneNames, IMatchStatus, IMatchControl
+│   ├── Core/          MatchContext, SettingsProvider, GameOptions, SceneNames, IMatchStatus, IMatchControl, FoulEvent
 │   ├── Data/          FootballEnums, PlayerMovementSettings, BallSettings, ActionSettings, CameraSettings,
-│   │                  TeamSettings, FormationSettings, MatchSettings, AISettings
+│   │                  TeamSettings, FormationSettings, MatchSettings, AISettings, SoundSettings
+│   ├── Audio/         ProceduralAudio, MatchAudio, UISound
 │   ├── Controls/      FootballInput, ChargeButton, HumanTeamController
 │   ├── Players/       FootballPlayer, PlayerMotor, PlayerStamina, PlayerActions
 │   ├── Ball/          Ball, BallPossession, BallVisual
@@ -125,6 +127,7 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 | `Main Camera` | `Camera`, `MatchCamera` | |
 | `SelectionIndicator` | `MeshFilter`, `MeshRenderer`, `SelectionIndicator` | Anillo y flecha bajo el jugador activo. |
 | `Directional Light` | `Light` | Sombras suaves. |
+| `Audio` | `MatchAudio` | Sonido del partido: golpeos, botes, postes, red, silbato y público. |
 | `UI` | `MatchHud`, `PauseMenu`, `ResultScreen` | Cada uno construye su lienzo al arrancar. Crean también el `EventSystem` (con `InputSystemUIInputModule`). |
 
 Escena `MenuPrincipal`: el campo (sin jugadores), `Main Camera` con `MenuCameraOrbit` y un objeto `MainMenu`.
@@ -164,6 +167,7 @@ Escena `MenuPrincipal`: el campo (sin jugadores), `Main Camera` con `MenuCameraO
 | **2. Reglas del partido** | `MatchManager` con estados (previa, saque inicial, en juego, saque, gol, descanso, final), cronómetro, cambio de campo, saques de banda/puerta/córner simplificados, pausa, repetir partido | **Hecha y probada en Unity** |
 | **3. IA y porteros** | Cerebro por futbolista con comportamientos separados (con balón, apoyo/desmarque, presión, cobertura de zona, portero), coordinación para que solo uno presione, formación dinámica según el balón, etiquetas de rol (F2) | **Hecha y probada en Unity** |
 | **4. Interfaz, menús y cámara** | Marcador, reloj y posesión (uGUI), ficha del jugador con resistencia y carga, mensajes, menú principal con opciones (duración, dificultad, asistencia), pantalla de controles, menú de pausa, pantalla de resultado con estadísticas, cámara con zoom según la jugada | **Hecha (pendiente de prueba en Unity)** |
+| **5. Sonido y faltas** | Sonidos generados por código (golpeos, botes, postes, red, silbato, público y celebración), volumen en Opciones; faltas por entrada por detrás o sin tocar el balón, tiros libres y penaltis, IA que evita entrar por detrás, faltas en las estadísticas | **Hecha (pendiente de prueba en Unity)** |
 
 > La cámara básica se adelanta a la Fase 1 porque sin ella no se puede probar el movimiento, que además es
 > relativo a la cámara. La IA va después de las reglas porque necesita saber en qué estado está el partido
@@ -173,13 +177,13 @@ Escena `MenuPrincipal`: el campo (sin jugadores), `Main Camera` con `MenuCameraO
 
 ## 7. Limitaciones conocidas
 
-- **La Fase 4 no se ha probado dentro de Unity.** Compila contra stubs de uGUI (ver más abajo); las Fases 1-3 sí
-  se han probado.
+- **Las Fases 4 y 5 no se han probado dentro de Unity.** Compilan (la 4 contra stubs de uGUI, ver más abajo); las
+  Fases 1-3 sí se han probado.
 - El equilibrio de la IA necesita ajustarse jugando (`Resources/FutbolTotal/AISettings`); la dificultad del menú
   solo escala unos pocos parámetros del rival.
-- Reglas simplificadas: el reloj se para cuando el balón no está en juego, no hay tiempo añadido, fueras de juego
-  ni faltas, y el saque de banda se hace con el pie.
-- Sin sonido: no hay efectos ni música, así que tampoco opción de volumen.
+- Reglas simplificadas: el reloj se para cuando el balón no está en juego; no hay tiempo añadido, fuera de juego,
+  tarjetas ni ley de la ventaja; el saque de banda se hace con el pie; en los penaltis contra ti para tu portero la IA.
+- Los sonidos son sintéticos y sencillos (no hay música ni narración); sirven de referencia hasta tener audio grabado.
 - Los controles no se pueden reasignar desde el menú todavía (las acciones ya lo permiten con
   `PerformInteractiveRebinding`).
 - Las opciones solo están en el menú principal; durante el partido, la pausa permite reiniciar, ver controles o salir.
@@ -201,7 +205,7 @@ Resultado: 0 errores, 0 avisos. Esto detecta errores de sintaxis y de tipos, **n
 ## 8. Puesta en marcha
 
 Instrucciones detalladas y listas de pruebas: [`docs/Fase1.md`](docs/Fase1.md), [`docs/Fase2.md`](docs/Fase2.md),
-[`docs/Fase3.md`](docs/Fase3.md) y [`docs/Fase4.md`](docs/Fase4.md).
+[`docs/Fase3.md`](docs/Fase3.md), [`docs/Fase4.md`](docs/Fase4.md) y [`docs/Fase5.md`](docs/Fase5.md).
 
 Resumen:
 
@@ -220,4 +224,4 @@ Resumen:
 | Marcador y cronómetro se actualizan | `MatchManager` + `MatchHud` |
 | Pausar y reanudar sin romper el estado | `MatchManager.SetPaused` (escala de tiempo, entradas descartadas) + `PauseMenu` |
 | Controles explicados en el juego | `ControlsPanel` (menú, pausa y F1) |
-| Implementación y limitaciones documentadas | Este README y `docs/Fase1-4.md` |
+| Implementación y limitaciones documentadas | Este README y `docs/Fase1-5.md` |

@@ -32,6 +32,11 @@ namespace FutbolTotal
 
         public void RegisterRules(IMatchStatus rules) => Rules = rules;
 
+        /// <summary>Se lanza cuando un jugador comete una falta (lo sancionan las reglas activas).</summary>
+        public event System.Action<FoulEvent> FoulCommitted;
+
+        public void ReportFoul(FoulEvent foul) => FoulCommitted?.Invoke(foul);
+
         private void Awake()
         {
             if (Current != null && Current != this)

@@ -63,6 +63,8 @@ namespace FutbolTotal
         /// <summary>(anterior, nuevo). Se lanza al ganar o perder la posesión.</summary>
         public event Action<FootballPlayer, FootballPlayer> OwnerChanged;
         public event Action<KickEvent> Kicked;
+        /// <summary>Choque físico del balón (suelo, postes, red, muros). Lo usa el sonido.</summary>
+        public event Action<Collision> Bounced;
 
         private void Awake()
         {
@@ -79,6 +81,8 @@ namespace FutbolTotal
             body.interpolation = RigidbodyInterpolation.Interpolate;
             body.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         }
+
+        private void OnCollisionEnter(Collision collision) => Bounced?.Invoke(collision);
 
         /// <summary>¿Debe <paramref name="player"/> ignorar el balón (acaba de golpearlo)?</summary>
         public bool IsIgnoring(FootballPlayer player) => player == ignoredPlayer && Time.time < ignoreUntil;

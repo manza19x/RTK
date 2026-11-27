@@ -120,7 +120,8 @@ namespace FutbolTotal
             {
                 statsText.text =
                     $"Posesión     {stats.PossessionPercent(TeamSide.Home)}%  -  {stats.PossessionPercent(TeamSide.Away)}%\n" +
-                    $"Tiros           {stats.Shots(TeamSide.Home)}  -  {stats.Shots(TeamSide.Away)}";
+                    $"Tiros           {stats.Shots(TeamSide.Home)}  -  {stats.Shots(TeamSide.Away)}\n" +
+                    $"Faltas          {stats.Fouls(TeamSide.Home)}  -  {stats.Fouls(TeamSide.Away)}";
             }
             else
             {

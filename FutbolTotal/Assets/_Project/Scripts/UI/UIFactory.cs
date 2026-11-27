@@ -144,6 +144,7 @@ namespace FutbolTotal
             colors.colorMultiplier = 1f;
             colors.fadeDuration = 0.06f;
             button.colors = colors;
+            button.onClick.AddListener(UISound.PlayClick);
             if (onClick != null) button.onClick.AddListener(onClick);
 
             var layout = rect.gameObject.AddComponent<LayoutElement>();

@@ -20,6 +20,7 @@ namespace FutbolTotal
         private readonly List<GoalRecord> goals = new List<GoalRecord>();
         private readonly float[] possessionSeconds = new float[2];
         private readonly int[] shots = new int[2];
+        private readonly int[] fouls = new int[2];
         private MatchManager manager;
         private Ball ball;
 
@@ -38,7 +39,15 @@ namespace FutbolTotal
             manager.MatchStarted += ResetStats;
             manager.GoalScored += OnGoal;
             ball.Kicked += OnKicked;
+            context.FoulCommitted += OnFoul;
         }
+
+        private void OnFoul(FoulEvent foul)
+        {
+            if (manager.IsBallInPlay) fouls[(int)foul.Offender.Team.Side]++;
+        }
+
+        public int Fouls(TeamSide side) => fouls[(int)side];
 
         private void OnDestroy()
         {
@@ -48,6 +57,7 @@ namespace FutbolTotal
                 manager.GoalScored -= OnGoal;
             }
             if (ball != null) ball.Kicked -= OnKicked;
+            if (MatchContext.Current != null) MatchContext.Current.FoulCommitted -= OnFoul;
         }
 
         private void Update()
@@ -61,6 +71,7 @@ namespace FutbolTotal
             goals.Clear();
             possessionSeconds[0] = possessionSeconds[1] = 0f;
             shots[0] = shots[1] = 0;
+            fouls[0] = fouls[1] = 0;
         }
 
         private void OnGoal(Team scorer)

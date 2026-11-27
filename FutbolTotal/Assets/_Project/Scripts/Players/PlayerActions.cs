@@ -19,6 +19,7 @@ namespace FutbolTotal
         private float tackleReadyAt;
         private bool tackleActive;
         private bool tackleResolved;
+        private bool tackleFromBehind;
 
         public ActionSettings Settings => settings;
         public bool IsTackling => tackleActive;
@@ -137,6 +138,7 @@ namespace FutbolTotal
             tackleReadyAt = Time.time + settings.tackleCooldown;
             tackleActive = true;
             tackleResolved = false;
+            tackleFromBehind = IsBehind(context.Ball.Owner);
 
             Vector3 toBall = KickMath.Flat(context.Ball.Position - player.Position);
             Vector3 direction = toBall.sqrMagnitude > 0.01f ? toBall.normalized : player.Forward;
@@ -158,8 +160,20 @@ namespace FutbolTotal
                                     !AIQueries.IsProtectedKeeper(owner, context.Pitch); // Portero con el balón en las manos.
                 if (rivalHasBall && KickMath.FlatDistance(player.Position, ball.Position) <= settings.tackleReach)
                 {
-                    owner.Motor.Stun(settings.tackleVictimStun);
-                    ball.SetOwner(player);
+                    if (tackleFromBehind)
+                    {
+                        CommitFoul(context, owner, FoulReason.FromBehind);
+                    }
+                    else
+                    {
+                        owner.Motor.Stun(settings.tackleVictimStun);
+                        ball.SetOwner(player);
+                    }
+                    tackleResolved = true;
+                }
+                else if (rivalHasBall && KickMath.FlatDistance(player.Position, owner.Position) <= settings.foulContactDistance)
+                {
+                    CommitFoul(context, owner, FoulReason.NoBallContact);
                     tackleResolved = true;
                 }
                 else if (player.HasBall)
@@ -173,6 +187,22 @@ namespace FutbolTotal
                 tackleActive = false;
                 if (!tackleResolved) player.Motor.Stun(settings.tackleMissStun);
             }
+        }
+
+        /// <summary>¿Está este jugador a la espalda de <paramref name="rival"/>? (una entrada así es falta).</summary>
+        public bool IsBehind(FootballPlayer rival)
+        {
+            if (rival == null) return false;
+            Vector3 toMe = KickMath.Flat(player.Position - rival.Position);
+            if (toMe.sqrMagnitude < 1e-4f) return false;
+            return Vector3.Dot(rival.Forward, toMe.normalized) < settings.fromBehindDot;
+        }
+
+        private void CommitFoul(MatchContext context, FootballPlayer victim, FoulReason reason)
+        {
+            // El que comete la falta queda frenado; las reglas deciden la sanción.
+            player.Motor.Stun(settings.tackleMissStun);
+            context.ReportFoul(new FoulEvent(player, victim, victim.Position, reason));
         }
 
         // ---------------------------------------------------------------- Utilidades

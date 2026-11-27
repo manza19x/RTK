@@ -15,6 +15,22 @@ namespace FutbolTotal
         private const string LengthKey = "FutbolTotal.MatchLength";
         private const string DifficultyKey = "FutbolTotal.Difficulty";
         private const string AssistKey = "FutbolTotal.PassAssist";
+        private const string VolumeKey = "FutbolTotal.Volume";
+
+        /// <summary>Volumen general (0..1), en pasos de 25 %.</summary>
+        public static float Volume
+        {
+            get => PlayerPrefs.GetFloat(VolumeKey, 0.75f);
+            set
+            {
+                PlayerPrefs.SetFloat(VolumeKey, Mathf.Clamp01(value));
+                PlayerPrefs.Save();
+                AudioListener.volume = Mathf.Clamp01(value);
+            }
+        }
+
+        /// <summary>Siguiente paso de volumen: 0, 25, 50, 75, 100 %.</summary>
+        public static float NextVolume(float current) => current >= 0.99f ? 0f : Mathf.Round(current * 4f + 1f) / 4f;
 
         public static MatchLengthOption MatchLength
         {

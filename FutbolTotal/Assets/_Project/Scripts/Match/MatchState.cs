@@ -20,6 +20,8 @@ namespace FutbolTotal
         Kickoff,
         ThrowIn,
         GoalKick,
-        Corner
+        Corner,
+        FreeKick,
+        Penalty
     }
 }

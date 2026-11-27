@@ -112,6 +112,7 @@ namespace FutbolTotal
                 if (goal != null) goal.Scored += OnGoal;
             }
             context.Ball.Kicked += OnBallKicked;
+            context.FoulCommitted += OnFoul;
             EnterPreMatch();
         }
 
@@ -122,6 +123,7 @@ namespace FutbolTotal
                 if (goal != null) goal.Scored -= OnGoal;
             }
             if (context != null && context.Ball != null) context.Ball.Kicked -= OnBallKicked;
+            if (context != null) context.FoulCommitted -= OnFoul;
             if (IsPaused) Time.timeScale = 1f;
         }
 
@@ -278,6 +280,68 @@ namespace FutbolTotal
             BeginKickoff(lastScorer.Opponent);
         }
 
+        // ------------------------------------------------------------------ Faltas
+
+        /// <summary>Falta: penalti si ocurre dentro del área del equipo que la comete; si no, tiro libre.</summary>
+        private void OnFoul(FoulEvent foul)
+        {
+            if (State != MatchState.Playing) return;
+
+            Team awarded = foul.Victim.Team;
+            int offenderGoalSide = -foul.Offender.Team.AttackDirection;
+            bool penalty = context.Pitch.IsInPenaltyArea(foul.Position, offenderGoalSide);
+            RestartDecision decision = penalty
+                ? RestartRules.Penalty(context, awarded, foul.Victim)
+                : RestartRules.FreeKick(context, awarded, foul.Position, foul.Victim);
+
+            BeginRestart(decision, MatchState.SetPiece);
+
+            string who = $"{foul.Offender.Team.Settings.shortName} {foul.Offender.ShirtNumber}";
+            string action = decision.Team == human.Team
+                ? (penalty ? "apunta y tira con K" : "apunta y pasa (J / L) o tira (K)")
+                : $"para {decision.Team.Settings.teamName}";
+            ShowMessage(penalty
+                ? $"¡PENALTI!  Falta de {who} ({foul.Describe()})\n{action}"
+                : $"Falta de {who} ({foul.Describe()})\nTiro libre: {action}", settings.messageSeconds + 1f);
+        }
+
+        /// <summary>
+        /// Colocación del penalti: el portero defensor en su línea y el resto de jugadores fuera del área,
+        /// por detrás del punto de penalti.
+        /// </summary>
+        private void ArrangePenalty(RestartDecision decision)
+        {
+            Pitch pitch = context.Pitch;
+            int goalSide = decision.Team.AttackDirection;
+            Team defending = decision.Team.Opponent;
+            float waitX = pitch.Center.x + goalSide * (pitch.HalfLength - pitch.PenaltyAreaDepth - 2f);
+
+            int index = 0;
+            foreach (Team team in new[] { decision.Team, defending })
+            {
+                foreach (FootballPlayer player in team.Players)
+                {
+                    if (player == decision.Taker) continue;
+                    if (player == defending.Goalkeeper)
+                    {
+                        Vector3 line = pitch.GoalCenter(goalSide) - new Vector3(goalSide * 0.3f, 0f, 0f);
+                        player.Motor.Teleport(line, new Vector3(-goalSide, 0f, 0f));
+                        continue;
+                    }
+                    if (player.IsGoalkeeper) continue; // El portero del equipo que tira se queda en su portería.
+
+                    bool tooClose = pitch.IsInPenaltyArea(player.Position, goalSide) ||
+                                    KickMath.FlatDistance(player.Position, decision.Spot) < pitch.CenterCircleRadius;
+                    if (!tooClose) continue;
+
+                    float z = pitch.Center.z + ((index % 8) - 3.5f) * 3f;
+                    float x = waitX - goalSide * (index / 8) * 2f;
+                    player.Motor.Teleport(new Vector3(x, 0f, z), new Vector3(goalSide, 0f, 0f));
+                    index++;
+                }
+            }
+        }
+
         // ------------------------------------------------------------------ Saques
 
         private void BeginKickoff(Team team)
@@ -319,6 +383,7 @@ namespace FutbolTotal
                 ? context.Pitch.CenterCircleRadius + 0.5f
                 : settings.restartClearance;
             ClearOpponents(decision.Team.Opponent, decision.Spot, clearance);
+            if (decision.Type == RestartType.Penalty) ArrangePenalty(decision);
             ball.SetOwner(taker);
             LockPlayers(true);
 

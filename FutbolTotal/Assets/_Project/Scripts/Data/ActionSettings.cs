@@ -88,6 +88,13 @@ namespace FutbolTotal
         [Tooltip("Aturdimiento del que falla la entrada (castiga pulsar sin pensar).")]
         public float tackleMissStun = 0.45f;
 
+        [Header("Faltas")]
+        [Tooltip("Si la entrada llega a esta distancia del cuerpo del rival sin haber alcanzado el balón, es falta.")]
+        public float foulContactDistance = 0.8f;
+        [Tooltip("Producto escalar entre la mirada del rival y la dirección hacia el que entra: por debajo, la entrada " +
+                 "viene por detrás y es falta (-1 = justo por la espalda).")]
+        [Range(-1f, 0f)] public float fromBehindDot = -0.4f;
+
         [Header("General")]
         [Tooltip("Ralentización tras golpear el balón (segundos).")]
         public float kickRecoverySeconds = 0.2f;

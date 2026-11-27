@@ -31,6 +31,19 @@ namespace FutbolTotal
             MatchContext.Current?.RegisterRules(this);
         }
 
+        private void OnEnable()
+        {
+            if (MatchContext.Current != null) MatchContext.Current.FoulCommitted += OnFoul;
+        }
+
+        private void OnDisable()
+        {
+            if (MatchContext.Current != null) MatchContext.Current.FoulCommitted -= OnFoul;
+        }
+
+        /// <summary>En entrenamiento las faltas solo se avisan (no hay saques).</summary>
+        private void OnFoul(FoulEvent foul) => ShowMessage($"Falta: {foul.Describe()}", 1.5f);
+
         private void Start()
         {
             foreach (GoalZone goal in goals)

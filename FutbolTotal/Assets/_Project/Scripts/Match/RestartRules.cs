@@ -121,6 +121,37 @@ namespace FutbolTotal
             };
         }
 
+        /// <summary>Tiro libre en el lugar de la falta. Lo saca el jugador que la recibió.</summary>
+        public static RestartDecision FreeKick(MatchContext context, Team team, Vector3 position, FootballPlayer fouled)
+        {
+            Vector3 spot = context.Pitch.ClampToPlayingArea(position, 1f);
+            Vector3 toGoal = KickMath.Flat(team.OpponentGoalCenter - spot);
+            return new RestartDecision
+            {
+                Type = RestartType.FreeKick,
+                Team = team,
+                Spot = spot,
+                Facing = toGoal.sqrMagnitude > 0.01f ? toGoal.normalized : new Vector3(team.AttackDirection, 0f, 0f),
+                Taker = fouled != null && !fouled.IsGoalkeeper ? fouled : NearestOutfieldPlayer(team, spot)
+            };
+        }
+
+        /// <summary>Penalti: desde el punto de penalti, lo tira el jugador que recibió la falta.</summary>
+        public static RestartDecision Penalty(MatchContext context, Team team, FootballPlayer fouled)
+        {
+            Pitch pitch = context.Pitch;
+            int goalSide = team.AttackDirection;
+            Vector3 spot = pitch.GoalCenter(goalSide) - new Vector3(goalSide * pitch.PenaltySpotDistance, 0f, 0f);
+            return new RestartDecision
+            {
+                Type = RestartType.Penalty,
+                Team = team,
+                Spot = spot,
+                Facing = new Vector3(goalSide, 0f, 0f),
+                Taker = fouled != null && !fouled.IsGoalkeeper ? fouled : NearestOutfieldPlayer(team, spot)
+            };
+        }
+
         public static FootballPlayer NearestOutfieldPlayer(Team team, Vector3 point)
         {
             FootballPlayer best = null;
@@ -146,6 +177,8 @@ namespace FutbolTotal
                 case RestartType.ThrowIn: return "Saque de banda";
                 case RestartType.GoalKick: return "Saque de puerta";
                 case RestartType.Corner: return "Córner";
+                case RestartType.FreeKick: return "Tiro libre";
+                case RestartType.Penalty: return "Penalti";
                 default: return type.ToString();
             }
         }

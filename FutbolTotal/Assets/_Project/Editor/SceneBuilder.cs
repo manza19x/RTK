@@ -39,6 +39,7 @@ namespace FutbolTotal.EditorTools
             public CameraSettings Camera;
             public MatchSettings Match;
             public AISettings AI;
+            public SoundSettings Sound;
             public FormationSettings Formation;
             public TeamSettings Home;
             public TeamSettings Away;
@@ -167,6 +168,11 @@ namespace FutbolTotal.EditorTools
             SetReference(hud, "human", human);
             SetReference(hud, "statusSource", rules);
 
+            // Sonido del partido (sonidos generados por código; ver ProceduralAudio).
+            var audioGo = new GameObject("Audio");
+            var matchAudio = audioGo.AddComponent<MatchAudio>();
+            SetReference(matchAudio, "settings", assets.Sound);
+
             // Interfaz de juego (se construye sola al arrancar; ver UIFactory).
             var ui = new GameObject("UI");
             ui.AddComponent<MatchHud>();
@@ -241,6 +247,7 @@ namespace FutbolTotal.EditorTools
                 Camera = LoadOrCreateSettings<CameraSettings>(SettingsPath(SettingsProvider.CameraName), null),
                 Match = LoadOrCreateSettings<MatchSettings>(SettingsPath(SettingsProvider.MatchName), null),
                 AI = LoadOrCreateSettings<AISettings>(SettingsPath(SettingsProvider.AIName), null),
+                Sound = LoadOrCreateSettings<SoundSettings>(SettingsPath(SettingsProvider.SoundName), null),
                 Formation = LoadOrCreateSettings<FormationSettings>(SettingsPath(SettingsProvider.FormationName),
                                                                     f => f.FillDefaultSevenASide()),
                 // Equipos ficticios con nombres y colores originales.

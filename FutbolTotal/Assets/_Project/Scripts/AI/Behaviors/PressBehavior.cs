@@ -57,7 +57,8 @@ namespace FutbolTotal
             {
                 brain.InTackleRangeSince = Time.time;
             }
-            else if (Time.time - brain.InTackleRangeSince >= s.tackleReactionDelay && player.Actions.CanTackle)
+            else if (Time.time - brain.InTackleRangeSince >= s.tackleReactionDelay && player.Actions.CanTackle &&
+                     !player.Actions.IsBehind(owner)) // La IA no entra por detrás: sería falta.
             {
                 player.Actions.TryTackle();
                 brain.InTackleRangeSince = -1f;
