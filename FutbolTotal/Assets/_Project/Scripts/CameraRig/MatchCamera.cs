@@ -19,6 +19,8 @@ namespace FutbolTotal
         private Camera cam;
         private Vector3 focus;
         private Vector3 focusVelocity;
+        private float zoom = 1f;
+        private float zoomVelocity;
 
         private void Awake()
         {
@@ -39,6 +41,7 @@ namespace FutbolTotal
             Vector3 desired = ComputeDesiredFocus();
             // unscaledDeltaTime: la cámara se asienta aunque el juego esté en pausa o a cámara lenta.
             focus = Vector3.SmoothDamp(focus, desired, ref focusVelocity, settings.smoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
+            zoom = Mathf.SmoothDamp(zoom, DesiredZoom(), ref zoomVelocity, settings.zoomSmoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
             ApplyTransform();
         }
 
@@ -47,6 +50,8 @@ namespace FutbolTotal
         {
             focus = ComputeDesiredFocus();
             focusVelocity = Vector3.zero;
+            zoom = DesiredZoom();
+            zoomVelocity = 0f;
             ApplyTransform();
         }
 
@@ -67,17 +72,41 @@ namespace FutbolTotal
 
             Pitch pitch = context.Pitch;
             Vector3 local = target - pitch.Center;
-            float maxX = Mathf.Max(0f, pitch.HalfLength - settings.endLineMargin);
+            // Al celebrar un gol se deja acercar más a la portería.
+            float margin = IsCelebrating ? settings.endLineMargin * 0.4f : settings.endLineMargin;
+            float maxX = Mathf.Max(0f, pitch.HalfLength - margin);
             local.x = Mathf.Clamp(local.x, -maxX, maxX);
             local.z = Mathf.Clamp(local.z, -pitch.HalfWidth, pitch.HalfWidth) * settings.followAcrossFactor;
             local.y = 0f;
             return pitch.Center + local;
         }
 
+        private bool IsCelebrating
+        {
+            get
+            {
+                var context = MatchContext.Current;
+                return context != null && context.Rules is MatchManager manager && manager.State == MatchState.GoalCelebration;
+            }
+        }
+
+        /// <summary>Zoom deseado: más cerca con el balón junto a una portería y al celebrar un gol.</summary>
+        private float DesiredZoom()
+        {
+            var context = MatchContext.Current;
+            if (context == null || settings == null) return 1f;
+            if (IsCelebrating) return settings.celebrationZoom;
+
+            Pitch pitch = context.Pitch;
+            Vector3 ball = context.Ball.Position;
+            float toGoal = Mathf.Min(KickMath.FlatDistance(ball, pitch.GoalCenter(1)), KickMath.FlatDistance(ball, pitch.GoalCenter(-1)));
+            return Mathf.Lerp(settings.attackZoom, 1f, Mathf.InverseLerp(12f, 30f, toGoal));
+        }
+
         private void ApplyTransform()
         {
             if (settings == null) return;
-            transform.position = focus + new Vector3(0f, settings.height, -settings.distance);
+            transform.position = focus + new Vector3(0f, settings.height * zoom, -settings.distance * zoom);
             transform.rotation = Quaternion.LookRotation(focus - transform.position, Vector3.up);
         }
     }

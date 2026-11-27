@@ -2,7 +2,8 @@
     "name": "FutbolTotal.Runtime",
     "rootNamespace": "FutbolTotal",
     "references": [
-        "Unity.InputSystem"
+        "Unity.InputSystem",
+        "UnityEngine.UI"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

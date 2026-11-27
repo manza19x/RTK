@@ -199,7 +199,9 @@ namespace FutbolTotal
         /// <summary>Asistencia: mezcla la dirección del jugador con la dirección ideal según <see cref="ActionSettings.passAssist"/>.</summary>
         private Vector3 BlendAim(Vector3 playerAim, Vector3 idealDirection)
         {
-            Vector3 blended = Vector3.Slerp(playerAim, idealDirection, settings.passAssist);
+            // El jugador humano usa la asistencia elegida en Opciones; la IA, la del asset.
+            float assist = player.IsHumanControlled ? GameOptions.ApplyPassAssist(settings.passAssist) : settings.passAssist;
+            Vector3 blended = Vector3.Slerp(playerAim, idealDirection, assist);
             blended.y = 0f;
             return blended.sqrMagnitude > 1e-4f ? blended.normalized : idealDirection;
         }

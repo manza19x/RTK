@@ -48,6 +48,21 @@ namespace FutbolTotal
             settings = SettingsProvider.Resolve(settings, SettingsProvider.AIName, this);
             team = GetComponent<Team>();
             human = GetComponent<HumanTeamController>();
+
+            // El equipo rival usa una copia ajustada a la dificultad elegida (el asset original no se toca).
+            if (!IsHumanTeam)
+            {
+                settings = Instantiate(settings);
+                ownsSettingsCopy = true;
+                DifficultyScaling.Apply(settings, GameOptions.Difficulty);
+            }
+        }
+
+        private bool ownsSettingsCopy;
+
+        private void OnDestroy()
+        {
+            if (ownsSettingsCopy && settings != null) Destroy(settings);
         }
 
         private void Start()

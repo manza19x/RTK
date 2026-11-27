@@ -13,7 +13,7 @@ namespace FutbolTotal
     /// fueras de juego ni faltas, y los saques de banda se hacen con el pie.
     /// </summary>
     [DefaultExecutionOrder(-30)]
-    public class MatchManager : MonoBehaviour, IMatchStatus
+    public class MatchManager : MonoBehaviour, IMatchStatus, IMatchControl
     {
         [SerializeField] private MatchSettings settings;
         [SerializeField] private HumanTeamController human;
@@ -44,6 +44,24 @@ namespace FutbolTotal
         public event Action<MatchState> StateChanged;
         public event Action<Team> GoalScored;
         public event Action MatchEnded;
+        /// <summary>Se lanza al empezar (o reiniciar) un partido, antes del saque inicial.</summary>
+        public event Action MatchStarted;
+
+        /// <summary>Segundos reales por parte: MatchSettings × la duración elegida en Opciones.</summary>
+        public float HalfDuration => settings.halfDurationSeconds * GameOptions.MatchLengthMultiplier;
+
+        /// <summary>Minuto de partido al estilo de la televisión (1 a 90).</summary>
+        public int CurrentMinute => Mathf.Clamp(Mathf.FloorToInt(DisplaySeconds / 60f) + 1, 1, settings.displayedHalfMinutes * 2);
+
+        private float DisplaySeconds
+        {
+            get
+            {
+                float halfSeconds = settings.displayedHalfMinutes * 60f;
+                float progress = Mathf.Clamp01(HalfElapsed / Mathf.Max(1f, HalfDuration));
+                return (Half - 1) * halfSeconds + progress * halfSeconds;
+            }
+        }
 
         // ------------------------------------------------------------------ IMatchStatus
 
@@ -51,9 +69,7 @@ namespace FutbolTotal
         {
             get
             {
-                float halfSeconds = settings.displayedHalfMinutes * 60f;
-                float progress = Mathf.Clamp01(HalfElapsed / Mathf.Max(1f, settings.halfDurationSeconds));
-                int total = Mathf.FloorToInt((Half - 1) * halfSeconds + progress * halfSeconds);
+                int total = Mathf.FloorToInt(DisplaySeconds);
                 return $"{total / 60:00}:{total % 60:00}";
             }
         }
@@ -124,7 +140,7 @@ namespace FutbolTotal
 
                 case MatchState.Playing:
                     HalfElapsed += Time.deltaTime;
-                    if (HalfElapsed >= settings.halfDurationSeconds) EndHalf();
+                    if (HalfElapsed >= HalfDuration) EndHalf();
                     break;
 
                 case MatchState.Kickoff:
@@ -140,9 +156,6 @@ namespace FutbolTotal
                     if (Time.time >= stateEndsAt) StartSecondHalf();
                     break;
 
-                case MatchState.FullTime:
-                    if (Time.time >= stateEndsAt && input.ShortPass.ReleasedThisFrame) RestartMatch();
-                    break;
             }
         }
 
@@ -175,12 +188,14 @@ namespace FutbolTotal
         public void StartMatch()
         {
             firstHalfKickoffTeam = context.HomeTeam;
+            MatchStarted?.Invoke();
             BeginKickoff(firstHalfKickoffTeam);
         }
 
         /// <summary>Vuelve a jugar desde 0-0 con los equipos en su campo inicial.</summary>
         public void RestartMatch()
         {
+            if (IsPaused) SetPaused(false);
             HomeGoals = 0;
             AwayGoals = 0;
             Half = 1;
@@ -221,8 +236,7 @@ namespace FutbolTotal
         {
             SetState(MatchState.FullTime);
             StopPlay();
-            stateEndsAt = Time.time + 1.5f;
-            ShowMessage($"FINAL  ·  {ScoreLine()}\nPulsa J / A para jugar otra vez", float.PositiveInfinity);
+            ShowMessage($"FINAL  ·  {ScoreLine()}", float.PositiveInfinity);
             MatchEnded?.Invoke();
         }
 
@@ -255,7 +269,7 @@ namespace FutbolTotal
 
         private void AfterGoal()
         {
-            if (HalfElapsed >= settings.halfDurationSeconds)
+            if (HalfElapsed >= HalfDuration)
             {
                 EndHalf();
                 return;

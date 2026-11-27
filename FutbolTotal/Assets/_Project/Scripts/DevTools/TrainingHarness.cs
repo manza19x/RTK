@@ -8,7 +8,7 @@ namespace FutbolTotal
     /// NO es el sistema de reglas del partido: eso es <see cref="MatchManager"/>. Se usa en la escena de entrenamiento
     /// para probar controles y física sin reloj ni saques.
     /// </summary>
-    public class TrainingHarness : MonoBehaviour, IMatchStatus
+    public class TrainingHarness : MonoBehaviour, IMatchStatus, IMatchControl
     {
         [SerializeField] private HumanTeamController human;
         [SerializeField] private GoalZone[] goals;
@@ -88,6 +88,14 @@ namespace FutbolTotal
             ResetPositions();
             human.InputEnabled = !IsPaused;
             resetting = false;
+        }
+
+        /// <summary>Pone el marcador de entrenamiento a cero y recoloca a todos.</summary>
+        public void RestartMatch()
+        {
+            HomeGoals = 0;
+            AwayGoals = 0;
+            ResetPositions();
         }
 
         public void ResetPositions()

@@ -1,81 +1,53 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace FutbolTotal
 {
     /// <summary>
-    /// HUD provisional de la Fase 1 con IMGUI (OnGUI): resistencia, carga de botones, posesión, marcador de
-    /// entrenamiento y ayuda de controles. Se sustituye por la interfaz definitiva (uGUI) en la Fase 4.
-    /// Usa GUI con rectángulos fijos (no GUILayout): así no depende de que las llamadas Begin/End de
-    /// diseño coincidan entre los distintos eventos de OnGUI.
+    /// Superposición técnica para desarrollo (IMGUI), separada de la interfaz de juego (<see cref="MatchHud"/>):
+    /// - F2 / L3: etiqueta sobre cada jugador con su rol de IA (o «TÚ»), para ver qué decide la IA;
+    /// - F3: panel con datos internos (resistencia, cargas, balón, FPS).
+    /// Ambos empiezan ocultos.
     /// </summary>
     public class DebugHud : MonoBehaviour
     {
         [SerializeField] private HumanTeamController human;
-        [Tooltip("MatchManager (partido) o TrainingHarness (entrenamiento): cualquier componente que implemente IMatchStatus.")]
+        [Tooltip("MatchManager o TrainingHarness: cualquier componente que implemente IMatchStatus.")]
         [SerializeField] private MonoBehaviour statusSource;
-        [SerializeField] private bool showHelpAtStart = true;
+        [SerializeField] private bool showRolesAtStart;
+        [SerializeField] private bool showPanelAtStart;
 
         private const float Margin = 12f;
         private const float Padding = 10f;
         private const float LineHeight = 21f;
-        private const float PanelWidth = 330f;
+        private const float PanelWidth = 340f;
 
-        private static readonly string[] KeyboardHelp =
-        {
-            "<b>Controles (teclado)</b>",
-            "WASD: mover · Shift izq.: sprint",
-            "J: pase corto (sin balón: entrada)",
-            "L: pase largo / centro",
-            "K: tiro (mantén para más potencia)",
-            "Q: cambiar de jugador",
-            "Esc: pausa · R: recolocar balón",
-            "F2: ver el rol de la IA de cada jugador",
-            "<size=11>Las acciones se cargan manteniendo y actúan al soltar.</size>"
-        };
-
-        private static readonly string[] GamepadHelp =
-        {
-            "<b>Controles (mando)</b>",
-            "Stick izq.: mover · RT: sprint",
-            "A: pase corto (sin balón: entrada)",
-            "X: pase largo / centro",
-            "B: tiro (mantén para más potencia)",
-            "LB: cambiar de jugador",
-            "Start: pausa · Select: recolocar balón",
-            "L3: ver el rol de la IA de cada jugador",
-            "<size=11>Las acciones se cargan manteniendo y actúan al soltar.</size>"
-        };
-
-        private bool showHelp;
+        private readonly Dictionary<FootballPlayer, PlayerBrain> brains = new Dictionary<FootballPlayer, PlayerBrain>();
+        private IMatchStatus status;
         private bool showRoles;
-        private readonly System.Collections.Generic.Dictionary<FootballPlayer, PlayerBrain> brains =
-            new System.Collections.Generic.Dictionary<FootballPlayer, PlayerBrain>();
-        private GUIStyle roleLabel;
+        private bool showPanel;
         private float smoothedFps;
 
         private GUIStyle label;
-        private GUIStyle centered;
-        private GUIStyle big;
-        private GUIStyle bigShadow;
+        private GUIStyle roleLabel;
         private Texture2D white;
         private Texture2D panelBackground;
 
-        private IMatchStatus status;
-
         private void Start()
         {
-            showHelp = showHelpAtStart;
+            if (human == null) human = Object.FindFirstObjectByType<HumanTeamController>();
             status = statusSource as IMatchStatus;
-            if (statusSource != null && status == null)
-            {
-                Debug.LogWarning("[Fútbol Total] DebugHud: el componente de estado no implementa IMatchStatus.", this);
-            }
+            showRoles = showRolesAtStart;
+            showPanel = showPanelAtStart;
         }
 
         private void Update()
         {
-            if (human != null && human.Input != null && human.Input.ToggleHelp.WasPressedThisFrame()) showHelp = !showHelp;
-            if (human != null && human.Input != null && human.Input.ToggleAIDebug.WasPressedThisFrame()) showRoles = !showRoles;
+            if (human != null && human.Input != null)
+            {
+                if (human.Input.ToggleAIDebug.WasPressedThisFrame()) showRoles = !showRoles;
+                if (human.Input.ToggleDebugPanel.WasPressedThisFrame()) showPanel = !showPanel;
+            }
             if (Time.unscaledDeltaTime > 0f) smoothedFps = Mathf.Lerp(smoothedFps, 1f / Time.unscaledDeltaTime, 0.05f);
         }
 
@@ -89,15 +61,10 @@ namespace FutbolTotal
         {
             if (label != null) return;
             white = MakeTexture(Color.white);
-            panelBackground = MakeTexture(new Color(0f, 0f, 0f, 0.55f));
-
+            panelBackground = MakeTexture(new Color(0f, 0f, 0f, 0.6f));
             label = new GUIStyle(GUI.skin.label) { fontSize = 14, richText = true, wordWrap = false, clipping = TextClipping.Clip };
             label.normal.textColor = Color.white;
-            centered = new GUIStyle(label) { alignment = TextAnchor.MiddleCenter };
-            roleLabel = new GUIStyle(centered) { fontSize = 11, fontStyle = FontStyle.Bold };
-            big = new GUIStyle(centered) { fontSize = 38, fontStyle = FontStyle.Bold, wordWrap = true };
-            bigShadow = new GUIStyle(big);
-            bigShadow.normal.textColor = new Color(0f, 0f, 0f, 0.7f);
+            roleLabel = new GUIStyle(label) { fontSize = 11, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         }
 
         private static Texture2D MakeTexture(Color color)
@@ -112,91 +79,11 @@ namespace FutbolTotal
         {
             var context = MatchContext.Current;
             if (context == null || human == null || human.Input == null) return;
+            if (!showRoles && !showPanel) return;
             EnsureStyles();
 
-            DrawStatusPanel(context);
             if (showRoles) DrawRoleLabels(context);
-            if (showHelp) DrawHelpPanel();
-            DrawCenterMessages();
-        }
-
-        private void DrawStatusPanel(MatchContext context)
-        {
-            FootballPlayer player = human.ActivePlayer;
-            FootballInput input = human.Input;
-            Ball ball = context.Ball;
-
-            const int lines = 8;
-            Rect panel = new Rect(Margin, Margin, PanelWidth, Padding * 2f + LineHeight * lines);
-            GUI.DrawTexture(panel, panelBackground);
-
-            float x = panel.x + Padding;
-            float y = panel.y + Padding;
-            float width = panel.width - Padding * 2f;
-
-            if (status != null)
-            {
-                Line(x, ref y, width, $"<b>{context.HomeTeam.Settings.shortName} {status.HomeGoals} - {status.AwayGoals} {context.AwayTeam.Settings.shortName}</b>   {status.ClockText}  <size=11>{status.PhaseText}</size>");
-            }
-            else
-            {
-                y += LineHeight;
-            }
-
-            if (player != null)
-            {
-                string state = player.Motor.IsStunned ? " <color=#ff8080>(aturdido)</color>"
-                             : player.Motor.IsSprinting ? " <color=#ffd060>(sprint)</color>" : "";
-                Line(x, ref y, width, $"Controlas: <b>{player}</b>{state}");
-                Bar(x, ref y, "Resistencia", player.Stamina.Current01,
-                    player.Stamina.IsExhausted ? Color.red : new Color(0.3f, 0.9f, 0.4f));
-            }
-            else
-            {
-                y += LineHeight * 2f;
-            }
-
-            Bar(x, ref y, "Pase corto", input.ShortPass.Charge01, Color.cyan);
-            Bar(x, ref y, "Pase largo", input.LongPass.Charge01, new Color(0.4f, 0.6f, 1f));
-            Bar(x, ref y, "Tiro", input.Shot.Charge01, new Color(1f, 0.55f, 0.2f));
-
-            string owner = ball.Owner != null ? ball.Owner.ToString() : "suelto";
-            Line(x, ref y, width, $"Balón: {owner} · {ball.Velocity.magnitude:0.0} m/s · altura {ball.Position.y:0.00} m");
-            Line(x, ref y, width, $"<size=11>{smoothedFps:0} FPS · F1 / R3: ayuda</size>");
-        }
-
-        private void Line(float x, ref float y, float width, string text)
-        {
-            GUI.Label(new Rect(x, y, width, LineHeight), text, label);
-            y += LineHeight;
-        }
-
-        private void Bar(float x, ref float y, string title, float value, Color color)
-        {
-            GUI.Label(new Rect(x, y, 95f, LineHeight), title, label);
-            Rect bar = new Rect(x + 100f, y + 6f, 180f, 10f);
-
-            Color previous = GUI.color;
-            GUI.color = new Color(1f, 1f, 1f, 0.2f);
-            GUI.DrawTexture(bar, white);
-            GUI.color = color;
-            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * Mathf.Clamp01(value), bar.height), white);
-            GUI.color = previous;
-
-            y += LineHeight;
-        }
-
-        private void DrawHelpPanel()
-        {
-            string[] lines = human.Input.LastDeviceIsGamepad ? GamepadHelp : KeyboardHelp;
-            Rect panel = new Rect(Screen.width - PanelWidth - Margin, Margin, PanelWidth,
-                                  Padding * 2f + LineHeight * lines.Length);
-            GUI.DrawTexture(panel, panelBackground);
-
-            float x = panel.x + Padding;
-            float y = panel.y + Padding;
-            float width = panel.width - Padding * 2f;
-            foreach (string text in lines) Line(x, ref y, width, text);
+            if (showPanel) DrawPanel(context);
         }
 
         /// <summary>Etiqueta sobre cada jugador con su rol de IA (o «TÚ»): hace visibles las decisiones de la IA.</summary>
@@ -223,21 +110,55 @@ namespace FutbolTotal
             }
         }
 
-        private void DrawCenterMessages()
+        private void DrawPanel(MatchContext context)
         {
-            if (status == null) return;
-            Rect center = new Rect(0f, Screen.height * 0.25f, Screen.width, 130f);
-            if (status.IsPaused)
+            FootballPlayer player = human.ActivePlayer;
+            FootballInput input = human.Input;
+            Ball ball = context.Ball;
+
+            // Debajo del marcador del HUD, a la izquierda, para no taparlo.
+            Rect panel = new Rect(Margin, Screen.height * 0.25f, PanelWidth, Padding * 2f + LineHeight * 8);
+            GUI.DrawTexture(panel, panelBackground);
+            float x = panel.x + Padding;
+            float y = panel.y + Padding;
+            float width = panel.width - Padding * 2f;
+
+            Line(x, ref y, width, "<b>Depuración (F3)</b>");
+            if (status != null) Line(x, ref y, width, $"Reglas: {status.PhaseText} · {status.ClockText} · en juego: {status.IsBallInPlay}");
+            else y += LineHeight;
+            if (player != null)
             {
-                GUI.Label(center, "PAUSA", big);
-                GUI.Label(new Rect(0f, center.yMax, Screen.width, 30f), "Esc / Start para continuar", centered);
+                Line(x, ref y, width, $"Activo: {player} · {player.Motor.Speed:0.0} m/s{(player.Motor.IsSprinting ? " · sprint" : "")}");
+                Bar(x, ref y, "Resistencia", player.Stamina.Current01, player.Stamina.IsExhausted ? Color.red : new Color(0.3f, 0.9f, 0.4f));
             }
-            else if (Time.unscaledTime < status.MessageUntil && !string.IsNullOrEmpty(status.Message))
+            else
             {
-                // Sombra para que el texto se lea sobre el césped.
-                GUI.Label(new Rect(center.x + 2f, center.y + 2f, center.width, center.height), status.Message, bigShadow);
-                GUI.Label(center, status.Message, big);
+                y += LineHeight * 2f;
             }
+            Bar(x, ref y, "Carga pase", input.ShortPass.Charge01, Color.cyan);
+            Bar(x, ref y, "Carga tiro", input.Shot.Charge01, new Color(1f, 0.55f, 0.2f));
+            string owner = ball.Owner != null ? ball.Owner.ToString() : "suelto";
+            Line(x, ref y, width, $"Balón: {owner} · {ball.Velocity.magnitude:0.0} m/s · h {ball.Position.y:0.00} m");
+            Line(x, ref y, width, $"{smoothedFps:0} FPS");
+        }
+
+        private void Line(float x, ref float y, float width, string text)
+        {
+            GUI.Label(new Rect(x, y, width, LineHeight), text, label);
+            y += LineHeight;
+        }
+
+        private void Bar(float x, ref float y, string title, float value, Color color)
+        {
+            GUI.Label(new Rect(x, y, 100f, LineHeight), title, label);
+            Rect bar = new Rect(x + 105f, y + 6f, 190f, 10f);
+            Color previous = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, 0.2f);
+            GUI.DrawTexture(bar, white);
+            GUI.color = color;
+            GUI.DrawTexture(new Rect(bar.x, bar.y, bar.width * Mathf.Clamp01(value), bar.height), white);
+            GUI.color = previous;
+            y += LineHeight;
         }
     }
 }

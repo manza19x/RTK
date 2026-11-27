@@ -3,10 +3,10 @@
 Prototipo jugable y ampliable de fútbol en 3D: un partido entre dos equipos ficticios, con control
 de teclado o mando, compañeros y rivales con IA, marcador, cronómetro y menús.
 
-> **Estado actual: Fase 3 de 4 (IA y porteros).** Las Fases 1 y 2 se han probado en Unity y funcionan.
-> El código compila sin errores ni avisos contra las DLL de referencia de Unity, pero **no se ha ejecutado
-> dentro del editor de Unity** (en el entorno de desarrollo no había Unity disponible). Hasta que se ejecute
-> la lista de pruebas de [`docs/Fase3.md`](docs/Fase3.md) no hay que dar por hecho que la Fase 3 funciona.
+> **Estado actual: las 4 fases están implementadas.** Las Fases 1, 2 y 3 se han probado en Unity y funcionan.
+> La Fase 4 (interfaz, menús y cámara) compila sin errores, pero **no se ha ejecutado dentro del editor de Unity**
+> (en el entorno de desarrollo no había Unity disponible). Hasta que se ejecute la lista de pruebas de
+> [`docs/Fase4.md`](docs/Fase4.md) no hay que dar por hecho que funciona.
 
 ---
 
@@ -26,6 +26,7 @@ Estas son las decisiones tomadas donde el encargo no lo concretaba. Todas se pue
 | Render | URP (plantilla *Universal 3D*) o pipeline integrado | El generador de escena detecta el pipeline y elige los shaders. HDRP no está contemplado. |
 | Arte | Formas primitivas y materiales de color liso con nombres claros (`M_Home_Kit`, `M_Ball`...) | Se sustituyen fácilmente por modelos y materiales definitivos. |
 | Identidad | Equipos ficticios **Club Aurora** (rojo) y **Deportivo Marea** (azul) | Sin marcas ni identidades reales. |
+| Interfaz | uGUI **construida por código** al arrancar, con el texto clásico y la fuente integrada | Sin prefabs ni referencias guardadas que se rompan al regenerar escenas, y sin tener que importar los recursos de TextMeshPro. |
 | Espacio de nombres | Todo el código de juego en `FutbolTotal`; el de editor en `FutbolTotal.EditorTools` | Evita choques de nombres (p. ej. una carpeta `Ball` y la clase `Ball`). Las carpetas separan responsabilidades. |
 
 ---
@@ -38,8 +39,8 @@ Estas son las decisiones tomadas donde el encargo no lo concretaba. Todas se pue
                 └────────┬─────────┘
                          ▼
 ┌──────────────────────────────────┐        ┌─────────────────────────┐
-│ HumanTeamController (1 por humano)│        │  IA (Fase 2): un cerebro │
-│ jugador activo, cambios, órdenes  │        │  por futbolista          │
+│ HumanTeamController (1 por humano)│        │  TeamAI + PlayerBrain:   │
+│ jugador activo, cambios, órdenes  │        │  un cerebro por jugador  │
 └────────────────┬─────────────────┘        └────────────┬────────────┘
                  │  misma API para humano e IA            │
                  ▼                                        ▼
@@ -56,6 +57,7 @@ Estas son las decisiones tomadas donde el encargo no lo concretaba. Todas se pue
         └──────────────────────────────┘
   MatchContext: acceso único a balón, campo y equipos.   Pitch / GoalZone: geometría y detección de gol.
   MatchCamera, SelectionIndicator: presentación.          Data/*.cs: ScriptableObjects con todos los parámetros.
+  MatchManager: reglas del partido (estados, reloj, saques). UI: MainMenu, MatchHud, PauseMenu, ResultScreen.
 ```
 
 Principios:
@@ -75,32 +77,31 @@ Principios:
 ```
 Assets/_Project/
 ├── Scripts/                      (FutbolTotal.Runtime.asmdef)
-│   ├── Core/          MatchContext, SettingsProvider
-│   ├── Data/          FootballEnums, PlayerMovementSettings, BallSettings, ActionSettings,
-│   │                  CameraSettings, TeamSettings, FormationSettings
+│   ├── Core/          MatchContext, SettingsProvider, GameOptions, SceneNames, IMatchStatus, IMatchControl
+│   ├── Data/          FootballEnums, PlayerMovementSettings, BallSettings, ActionSettings, CameraSettings,
+│   │                  TeamSettings, FormationSettings, MatchSettings, AISettings
 │   ├── Controls/      FootballInput, ChargeButton, HumanTeamController
 │   ├── Players/       FootballPlayer, PlayerMotor, PlayerStamina, PlayerActions
 │   ├── Ball/          Ball, BallPossession, BallVisual
 │   ├── Teams/         Team
 │   ├── Pitch/         Pitch, PitchMeshGenerator, GoalZone
 │   ├── Gameplay/      KickMath, PassTargetSelector, ShotCalculator, PlayerSwitchSelector
-│   ├── CameraRig/     MatchCamera
+│   ├── CameraRig/     MatchCamera, MenuCameraOrbit
 │   ├── Presentation/  SelectionIndicator
 │   ├── Utils/         MeshShapes (FlatMeshBuilder)
-│   ├── Match/         MatchManager, MatchState, RestartRules, AutoRestart
-│   ├── AI/            TeamAI, PlayerBrain, FormationShape, PassEvaluator, AIQueries, AIRole
+│   ├── Match/         MatchManager, MatchState, RestartRules, AutoRestart, MatchStats
+│   ├── AI/            TeamAI, PlayerBrain, FormationShape, PassEvaluator, AIQueries, AIRole, DifficultyScaling
 │   │   └── Behaviors/ BallCarrier, Support, Press (presión/contención/búsqueda), ZoneCover, Goalkeeper
-│   └── DevTools/      TrainingHarness, DebugHud      (provisionales hasta la interfaz definitiva)
+│   ├── UI/            UIFactory, MainMenu, MatchHud, PauseMenu, ResultScreen, ControlsPanel
+│   └── DevTools/      TrainingHarness (escena de entrenamiento), DebugHud (F2 roles, F3 depuración)
 ├── Editor/                       (FutbolTotal.Editor.asmdef)
 │   ├── EditorAssetUtility.cs
-│   ├── SceneBuilder.cs           menús «Fútbol Total ▸ Crear escena de partido / de entrenamiento»
+│   ├── SceneBuilder.cs           menú «Fútbol Total ▸ Crear todas las escenas» (y una a una)
 │   └── Phase1SceneBuilder.cs     obsoleto y vacío (se puede borrar)
 ├── Resources/FutbolTotal/ (generado) assets de ajustes, equipos y formación
 ├── Art/        (generado)  Materials/, Textures/, Physics/
-└── Scenes/     (generado)  Partido.unity, Entrenamiento.unity
+└── Scenes/     (generado)  MenuPrincipal.unity, Partido.unity, Entrenamiento.unity
 ```
-
-Carpetas previstas para la fase siguiente: `Scripts/UI/`, `Scenes/MainMenu.unity`.
 
 ---
 
@@ -110,7 +111,7 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 
 | Objeto | Componentes | Notas |
 |---|---|---|
-| `Match` | `MatchContext`, `MatchManager`, `DebugHud` | `MatchContext` referencia balón, campo y equipos; `MatchManager` aplica las reglas. En la escena de entrenamiento, `TrainingHarness` sustituye a `MatchManager`. |
+| `Match` | `MatchContext`, `MatchManager`, `MatchStats`, `DebugHud` | `MatchContext` referencia balón, campo y equipos; `MatchManager` aplica las reglas. En la escena de entrenamiento, `TrainingHarness` sustituye a `MatchManager`. |
 | `Pitch` | `Pitch` | Centrado en el origen, sin rotar. Porterías en ±X. |
 | ├ `GroundCollider` | `BoxCollider` (PM_Grass) | Cara superior en y = 0. Invisible. |
 | ├ `Surround`, `PlayingSurface` | `MeshRenderer` | Solo visuales. |
@@ -124,6 +125,9 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 | `Main Camera` | `Camera`, `MatchCamera` | |
 | `SelectionIndicator` | `MeshFilter`, `MeshRenderer`, `SelectionIndicator` | Anillo y flecha bajo el jugador activo. |
 | `Directional Light` | `Light` | Sombras suaves. |
+| `UI` | `MatchHud`, `PauseMenu`, `ResultScreen` | Cada uno construye su lienzo al arrancar. Crean también el `EventSystem` (con `InputSystemUIInputModule`). |
+
+Escena `MenuPrincipal`: el campo (sin jugadores), `Main Camera` con `MenuCameraOrbit` y un objeto `MainMenu`.
 
 ---
 
@@ -133,14 +137,16 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 |---|---|---|
 | Mover | WASD | Stick izquierdo |
 | Sprint (gasta resistencia) | Shift izquierdo | RT / R2 |
-| Pase corto · sin balón: **entrada** | J | A / ✕ |
-| Pase largo / centro | L | X / □ |
-| Tiro | K | B / ○ |
+| Pase corto · sin balón: **entrada** | J | A / Cruz |
+| Pase largo / centro | L | X / Cuadrado |
+| Tiro | K | B / Círculo |
 | Cambiar de jugador | Q | LB / L1 |
 | Pausa | Esc | Start / Options |
-| Ayuda de controles | F1 | Pulsar stick derecho |
+| Pantalla de controles | F1 | Pulsar stick derecho |
 | Ver el rol de la IA de cada jugador | F2 | Pulsar stick izquierdo |
-| Recolocar balón (pruebas) | R | Select / Share |
+| Panel de depuración | F3 | — |
+| Recolocar balón (solo entrenamiento) | R | Select / Share |
+| Menús | Flechas o WASD + Intro, o ratón | Stick o cruceta + A |
 
 - **Mantener** pase o tiro carga la potencia; la acción ocurre **al soltar**. Toque corto = pase cercano o tiro suave.
 - Pulsar pase/tiro **antes de recibir** guarda la orden 0,35 s: golpeo al primer toque.
@@ -156,8 +162,8 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 |---|---|---|
 | **1. Movimiento, balón y controles** | Campo y porterías, jugadores, movimiento con aceleración/giro, sprint con resistencia, conducción, pase corto/largo con asistencia, tiro con potencia y error, entrada, cambio de jugador, detección de gol, cámara básica, HUD de pruebas, generador de escena | **Hecha y probada en Unity** |
 | **2. Reglas del partido** | `MatchManager` con estados (previa, saque inicial, en juego, saque, gol, descanso, final), cronómetro, cambio de campo, saques de banda/puerta/córner simplificados, pausa, repetir partido | **Hecha y probada en Unity** |
-| **3. IA y porteros** | Cerebro por futbolista con comportamientos separados (con balón, apoyo/desmarque, presión, cobertura de zona, portero), coordinación para que solo uno presione, formación dinámica según el balón, etiquetas de rol (F2) | **Hecha (pendiente de prueba en Unity)** |
-| 4. Interfaz, menús y cámara | Marcador y tiempo definitivos (uGUI), menú principal, pausa con opciones, pantalla de controles, pantalla de resultado, cámara con zoom según la jugada | Pendiente |
+| **3. IA y porteros** | Cerebro por futbolista con comportamientos separados (con balón, apoyo/desmarque, presión, cobertura de zona, portero), coordinación para que solo uno presione, formación dinámica según el balón, etiquetas de rol (F2) | **Hecha y probada en Unity** |
+| **4. Interfaz, menús y cámara** | Marcador, reloj y posesión (uGUI), ficha del jugador con resistencia y carga, mensajes, menú principal con opciones (duración, dificultad, asistencia), pantalla de controles, menú de pausa, pantalla de resultado con estadísticas, cámara con zoom según la jugada | **Hecha (pendiente de prueba en Unity)** |
 
 > La cámara básica se adelanta a la Fase 1 porque sin ella no se puede probar el movimiento, que además es
 > relativo a la cámara. La IA va después de las reglas porque necesita saber en qué estado está el partido
@@ -167,13 +173,16 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 
 ## 7. Limitaciones conocidas
 
-- **La Fase 3 no se ha probado dentro de Unity.** Compila (ver más abajo); las Fases 1 y 2 sí se han probado.
-  El equilibrio de la IA (cuánto presiona, cuánto acierta, cuánto para el portero) necesita ajustarse jugando,
-  con los valores de `Resources/FutbolTotal/AISettings`.
-- La IA no tiene niveles de dificultad todavía; se puede ajustar a mano desde `AISettings`.
+- **La Fase 4 no se ha probado dentro de Unity.** Compila contra stubs de uGUI (ver más abajo); las Fases 1-3 sí
+  se han probado.
+- El equilibrio de la IA necesita ajustarse jugando (`Resources/FutbolTotal/AISettings`); la dificultad del menú
+  solo escala unos pocos parámetros del rival.
 - Reglas simplificadas: el reloj se para cuando el balón no está en juego, no hay tiempo añadido, fueras de juego
   ni faltas, y el saque de banda se hace con el pie.
-- El HUD es provisional (IMGUI); la interfaz definitiva llega en la Fase 4.
+- Sin sonido: no hay efectos ni música, así que tampoco opción de volumen.
+- Los controles no se pueden reasignar desde el menú todavía (las acciones ya lo permiten con
+  `PerformInteractiveRebinding`).
+- Las opciones solo están en el menú principal; durante el partido, la pausa permite reiniciar, ver controles o salir.
 - Sin animaciones: los cuerpos son primitivas que giran y se desplazan.
 - Las entradas no tienen faltas: si fallas, tu jugador queda aturdido un instante.
 - El tiro incluye un margen de error aleatorio; el tamaño del margen se explica siempre por distancia, presión,
@@ -183,17 +192,32 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 
 Sin Unity disponible, se compiló todo el código (juego y editor) con el SDK de .NET contra las DLL de referencia
 `UnityEngine.dll`/`UnityEditor.dll` de Unity 2021, renombrando automáticamente las APIs que cambiaron de nombre en
-Unity 6 (`linearVelocity`→`velocity`, `PhysicsMaterial`→`PhysicMaterial`...) y con stubs mínimos del Input System.
+Unity 6 (`linearVelocity`→`velocity`, `PhysicsMaterial`→`PhysicMaterial`...) y con stubs mínimos del Input System
+y de uGUI (que es un paquete y no está en esas DLL).
 Resultado: 0 errores, 0 avisos. Esto detecta errores de sintaxis y de tipos, **no** errores de comportamiento.
 
 ---
 
 ## 8. Puesta en marcha
 
-Instrucciones detalladas y listas de pruebas: **[`docs/Fase1.md`](docs/Fase1.md)** y **[`docs/Fase2.md`](docs/Fase2.md)**.
+Instrucciones detalladas y listas de pruebas: [`docs/Fase1.md`](docs/Fase1.md), [`docs/Fase2.md`](docs/Fase2.md),
+[`docs/Fase3.md`](docs/Fase3.md) y [`docs/Fase4.md`](docs/Fase4.md).
 
 Resumen:
 
 1. Crea un proyecto nuevo en Unity 6 con la plantilla **Universal 3D** (incluye el Input System).
 2. Copia la carpeta `Assets/_Project` de este repositorio dentro de `Assets/` de tu proyecto.
-3. Menú **Fútbol Total ▸ Crear escena de partido** y pulsa **Play**.
+3. Menú **Fútbol Total ▸ Crear todas las escenas** y pulsa **Play** (empieza en el menú principal).
+
+## 9. Criterios de aceptación
+
+| Criterio | Dónde se cumple |
+|---|---|
+| Se puede iniciar y terminar un partido | Menú principal ▸ Jugar; `MatchManager` (previa, dos partes, final) y `ResultScreen` |
+| Mover, conducir, pasar, correr y tirar | `PlayerMotor`, `Ball` (conducción), `PlayerActions`, `PlayerStamina` |
+| Balón estable y goles detectados | `Ball`, `BallPossession`, `GoalZone` (balón entero dentro) |
+| La IA participa sin quedarse quieta ni amontonarse | `TeamAI` (un solo jugador al balón) y comportamientos de `Scripts/AI/Behaviors` |
+| Marcador y cronómetro se actualizan | `MatchManager` + `MatchHud` |
+| Pausar y reanudar sin romper el estado | `MatchManager.SetPaused` (escala de tiempo, entradas descartadas) + `PauseMenu` |
+| Controles explicados en el juego | `ControlsPanel` (menú, pausa y F1) |
+| Implementación y limitaciones documentadas | Este README y `docs/Fase1-4.md` |

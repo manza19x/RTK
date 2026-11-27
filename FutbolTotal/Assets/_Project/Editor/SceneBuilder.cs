@@ -26,8 +26,10 @@ namespace FutbolTotal.EditorTools
         private const string TexturesFolder = Root + "/Art/Textures";
         private const string PhysicsFolder = Root + "/Art/Physics";
         private const string ScenesFolder = Root + "/Scenes";
-        private const string MatchScenePath = ScenesFolder + "/Partido.unity";
-        private const string TrainingScenePath = ScenesFolder + "/Entrenamiento.unity";
+        // Los nombres de archivo deben coincidir con SceneNames (el juego carga las escenas por nombre).
+        private const string MainMenuScenePath = ScenesFolder + "/" + SceneNames.MainMenu + ".unity";
+        private const string MatchScenePath = ScenesFolder + "/" + SceneNames.Match + ".unity";
+        private const string TrainingScenePath = ScenesFolder + "/" + SceneNames.Training + ".unity";
 
         private sealed class Assets
         {
@@ -47,16 +49,65 @@ namespace FutbolTotal.EditorTools
             public PhysicsMaterial GrassPhysics, BallPhysics, NetPhysics, PostPhysics, WallPhysics;
         }
 
-        [MenuItem("Fútbol Total/Crear escena de partido", priority = 0)]
-        public static void BuildMatchScene() => Build(true);
+        [MenuItem("Fútbol Total/Crear todas las escenas", priority = 0)]
+        public static void BuildAllScenes()
+        {
+            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
+            Build(true);
+            Build(false);
+            BuildMainMenu(); // La última, para dejarla abierta: es la que arranca el juego.
+            Debug.Log("[Fútbol Total] Escenas creadas: menú principal, partido y entrenamiento. Pulsa Play para empezar desde el menú.");
+        }
 
-        [MenuItem("Fútbol Total/Crear escena de entrenamiento", priority = 1)]
-        public static void BuildTrainingScene() => Build(false);
+        [MenuItem("Fútbol Total/Crear escena de menú principal", priority = 11)]
+        public static void BuildMainMenuScene()
+        {
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) BuildMainMenu();
+        }
+
+        [MenuItem("Fútbol Total/Crear escena de partido", priority = 12)]
+        public static void BuildMatchScene()
+        {
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) Build(true);
+        }
+
+        [MenuItem("Fútbol Total/Crear escena de entrenamiento", priority = 13)]
+        public static void BuildTrainingScene()
+        {
+            if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) Build(false);
+        }
+
+        /// <summary>Menú principal: el campo de fondo con una cámara que gira y la interfaz del menú.</summary>
+        private static void BuildMainMenu()
+        {
+            Scene scene = EditorSceneManager.NewScene(NewSceneSetup.DefaultGameObjects, NewSceneMode.Single);
+            Assets assets = CreateAssets();
+            ConfigureLight();
+            BuildPitch(assets, out _);
+
+            GameObject cameraGo = GameObject.Find("Main Camera");
+            if (cameraGo != null)
+            {
+                var camera = cameraGo.GetComponent<Camera>();
+                camera.clearFlags = CameraClearFlags.SolidColor;
+                camera.backgroundColor = new Color(0.45f, 0.62f, 0.8f);
+                camera.fieldOfView = 45f;
+                camera.farClipPlane = 400f;
+                cameraGo.AddComponent<MenuCameraOrbit>();
+            }
+
+            new GameObject("MainMenu").AddComponent<MainMenu>();
+
+            EditorAssetUtility.EnsureFolder(ScenesFolder);
+            EditorSceneManager.SaveScene(scene, MainMenuScenePath);
+            AddSceneToBuildSettings(MainMenuScenePath);
+            AssetDatabase.SaveAssets();
+            Debug.Log($"[Fútbol Total] Menú principal creado en {MainMenuScenePath}.");
+        }
 
         private static void Build(bool match)
         {
             string scenePath = match ? MatchScenePath : TrainingScenePath;
-            if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
 
             // Primero la escena y después los assets: abrir una escena en modo Single descarga de memoria los assets
             // no usados, y las referencias obtenidas antes podrían guardarse vacías.
@@ -116,9 +167,19 @@ namespace FutbolTotal.EditorTools
             SetReference(hud, "human", human);
             SetReference(hud, "statusSource", rules);
 
+            // Interfaz de juego (se construye sola al arrancar; ver UIFactory).
+            var ui = new GameObject("UI");
+            ui.AddComponent<MatchHud>();
+            ui.AddComponent<PauseMenu>();
+            if (match)
+            {
+                matchGo.AddComponent<MatchStats>();
+                ui.AddComponent<ResultScreen>();
+            }
+
             EditorAssetUtility.EnsureFolder(ScenesFolder);
             EditorSceneManager.SaveScene(scene, scenePath);
-            AddSceneToBuildSettings(scenePath, match);
+            AddSceneToBuildSettings(scenePath);
             AssetDatabase.SaveAssets();
 
             Selection.activeGameObject = matchGo;
@@ -521,14 +582,18 @@ namespace FutbolTotal.EditorTools
             SetReference(indicator, "controller", human);
         }
 
-        /// <summary>Añade la escena a Build Settings. La de partido va la primera (es la que arranca el juego).</summary>
-        private static void AddSceneToBuildSettings(string path, bool first)
+        /// <summary>
+        /// Añade la escena a Build Settings y las ordena: menú principal (la que arranca el juego), partido,
+        /// entrenamiento y después cualquier otra.
+        /// </summary>
+        private static void AddSceneToBuildSettings(string path)
         {
             List<EditorBuildSettingsScene> scenes = EditorBuildSettings.scenes.Where(s => s.path != path).ToList();
-            var entry = new EditorBuildSettingsScene(path, true);
-            if (first) scenes.Insert(0, entry);
-            else scenes.Add(entry);
-            EditorBuildSettings.scenes = scenes.ToArray();
+            scenes.Add(new EditorBuildSettingsScene(path, true));
+            string[] order = { MainMenuScenePath, MatchScenePath, TrainingScenePath };
+            EditorBuildSettings.scenes = scenes
+                .OrderBy(s => System.Array.IndexOf(order, s.path) is int i && i >= 0 ? i : order.Length)
+                .ToArray();
         }
     }
 }

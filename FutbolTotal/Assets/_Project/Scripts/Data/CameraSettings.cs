@@ -21,5 +21,13 @@ namespace FutbolTotal
         [Tooltip("Margen respecto a las líneas de fondo para no enseñar demasiado fuera del campo.")]
         public float endLineMargin = 10f;
         public float smoothTime = 0.3f;
+
+        [Header("Zoom según la jugada")]
+        [Tooltip("Acercamiento cuando el balón está cerca de una portería (1 = sin zoom).")]
+        [Range(0.5f, 1f)] public float attackZoom = 0.85f;
+        [Tooltip("Acercamiento al celebrar un gol.")]
+        [Range(0.4f, 1f)] public float celebrationZoom = 0.65f;
+        [Tooltip("Suavizado del zoom (s).")]
+        public float zoomSmoothTime = 0.7f;
     }
 }
