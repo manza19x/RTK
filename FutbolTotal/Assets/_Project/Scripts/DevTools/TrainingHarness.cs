@@ -24,6 +24,12 @@ namespace FutbolTotal
         public float MessageUntil { get; private set; }
         public string ClockText => "--:--";
         public string PhaseText => "Entrenamiento";
+        public bool IsBallInPlay => !IsPaused && !resetting;
+
+        private void Awake()
+        {
+            MatchContext.Current?.RegisterRules(this);
+        }
 
         private void Start()
         {

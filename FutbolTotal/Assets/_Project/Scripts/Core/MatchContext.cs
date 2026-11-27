@@ -27,6 +27,10 @@ namespace FutbolTotal
         public Team HomeTeam => homeTeam;
         public Team AwayTeam => awayTeam;
         public IReadOnlyList<FootballPlayer> AllPlayers => allPlayers;
+        /// <summary>Reglas activas (MatchManager o TrainingHarness). Null si la escena no tiene ninguna.</summary>
+        public IMatchStatus Rules { get; private set; }
+
+        public void RegisterRules(IMatchStatus rules) => Rules = rules;
 
         private void Awake()
         {

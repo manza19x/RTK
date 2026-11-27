@@ -39,6 +39,7 @@ namespace FutbolTotal
         public float MessageUntil { get; private set; }
         public RestartDecision CurrentRestart { get; private set; }
         public MatchSettings Settings => settings;
+        public bool IsBallInPlay => State == MatchState.Playing && !IsPaused;
 
         public event Action<MatchState> StateChanged;
         public event Action<Team> GoalScored;
@@ -76,6 +77,7 @@ namespace FutbolTotal
         private void Awake()
         {
             settings = SettingsProvider.Resolve(settings, SettingsProvider.MatchName, this);
+            MatchContext.Current?.RegisterRules(this);
         }
 
         private void Start()

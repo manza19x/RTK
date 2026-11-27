@@ -26,6 +26,8 @@ namespace FutbolTotal
         private float slowedUntil;
         private float lungeUntil;
         private Vector3 lungeVelocity;
+        private Vector3 facingRequest;
+        private float facingRequestUntil;
 
         public Vector3 Velocity => velocity;
         public float Speed => velocity.magnitude;
@@ -66,6 +68,18 @@ namespace FutbolTotal
         }
 
         public void Stop() => SetMoveInput(Vector3.zero, false);
+
+        /// <summary>
+        /// Pide mirar hacia una dirección cuando el jugador está parado (p. ej. la IA mirando al balón).
+        /// Caduca enseguida: hay que pedirlo cada frame mientras se quiera mantener.
+        /// </summary>
+        public void SetFacing(Vector3 direction)
+        {
+            direction.y = 0f;
+            if (direction.sqrMagnitude < 1e-4f) return;
+            facingRequest = direction.normalized;
+            facingRequestUntil = Time.time + 0.2f;
+        }
 
         /// <summary>Sin control durante <paramref name="duration"/> segundos (entrada recibida o fallida).</summary>
         public void Stun(float duration)
@@ -181,6 +195,7 @@ namespace FutbolTotal
         {
             // Miramos hacia donde nos movemos; parado, hacia donde se apunta (permite orientarse antes de pasar o tirar).
             Vector3 look = velocity.sqrMagnitude > 0.25f ? velocity : input;
+            if (look.sqrMagnitude < 1e-4f && Time.time < facingRequestUntil) look = facingRequest;
             if (look.sqrMagnitude < 1e-4f) return;
 
             float rate = IsSprinting ? settings.sprintTurnRate : settings.turnRate;

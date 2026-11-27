@@ -9,6 +9,8 @@ namespace FutbolTotal
         int HomeGoals { get; }
         int AwayGoals { get; }
         bool IsPaused { get; }
+        /// <summary>True si el balón está en juego: la IA solo actúa entonces.</summary>
+        bool IsBallInPlay { get; }
         /// <summary>Texto del reloj, p. ej. "23:41".</summary>
         string ClockText { get; }
         /// <summary>Fase del partido, p. ej. "1ª parte".</summary>

@@ -36,6 +36,7 @@ namespace FutbolTotal.EditorTools
             public ActionSettings Actions;
             public CameraSettings Camera;
             public MatchSettings Match;
+            public AISettings AI;
             public FormationSettings Formation;
             public TeamSettings Home;
             public TeamSettings Away;
@@ -152,6 +153,7 @@ namespace FutbolTotal.EditorTools
             foreach (var ball in Object.FindObjectsByType<Ball>(FindObjectsSortMode.None)) Check(ball, "settings");
             foreach (var camera in Object.FindObjectsByType<MatchCamera>(FindObjectsSortMode.None)) Check(camera, "settings");
             foreach (var manager in Object.FindObjectsByType<MatchManager>(FindObjectsSortMode.None)) Check(manager, "settings");
+            foreach (var teamAI in Object.FindObjectsByType<TeamAI>(FindObjectsSortMode.None)) Check(teamAI, "settings");
             foreach (var team in Object.FindObjectsByType<Team>(FindObjectsSortMode.None))
             {
                 Check(team, "settings");
@@ -177,6 +179,7 @@ namespace FutbolTotal.EditorTools
                 Actions = LoadOrCreateSettings<ActionSettings>(SettingsPath(SettingsProvider.ActionsName), null),
                 Camera = LoadOrCreateSettings<CameraSettings>(SettingsPath(SettingsProvider.CameraName), null),
                 Match = LoadOrCreateSettings<MatchSettings>(SettingsPath(SettingsProvider.MatchName), null),
+                AI = LoadOrCreateSettings<AISettings>(SettingsPath(SettingsProvider.AIName), null),
                 Formation = LoadOrCreateSettings<FormationSettings>(SettingsPath(SettingsProvider.FormationName),
                                                                     f => f.FillDefaultSevenASide()),
                 // Equipos ficticios con nombres y colores originales.
@@ -422,6 +425,9 @@ namespace FutbolTotal.EditorTools
         {
             var teamGo = new GameObject(name);
             var team = teamGo.AddComponent<Team>();
+            // IA del equipo (en el equipo humano controla a todos menos al jugador activo).
+            var teamAI = teamGo.AddComponent<TeamAI>();
+            SetReference(teamAI, "settings", a.AI);
             SetReference(team, "settings", teamSettings);
             SetReference(team, "formation", a.Formation);
             SetInt(team, "side", (int)side);
@@ -461,6 +467,7 @@ namespace FutbolTotal.EditorTools
             // FootballPlayer añade PlayerMotor, PlayerStamina y PlayerActions por [RequireComponent];
             // se recuperan con GetComponent para no crear duplicados.
             var player = go.AddComponent<FootballPlayer>();
+            go.AddComponent<PlayerBrain>();
             SetReference(go.GetComponent<PlayerMotor>(), "settings", a.Movement);
             SetReference(go.GetComponent<PlayerStamina>(), "settings", a.Movement);
             SetReference(go.GetComponent<PlayerActions>(), "settings", a.Actions);

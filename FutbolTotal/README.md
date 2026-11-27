@@ -3,10 +3,10 @@
 Prototipo jugable y ampliable de fútbol en 3D: un partido entre dos equipos ficticios, con control
 de teclado o mando, compañeros y rivales con IA, marcador, cronómetro y menús.
 
-> **Estado actual: Fase 2 de 4 (reglas del partido).** La Fase 1 se ha probado en Unity y funciona.
+> **Estado actual: Fase 3 de 4 (IA y porteros).** Las Fases 1 y 2 se han probado en Unity y funcionan.
 > El código compila sin errores ni avisos contra las DLL de referencia de Unity, pero **no se ha ejecutado
 > dentro del editor de Unity** (en el entorno de desarrollo no había Unity disponible). Hasta que se ejecute
-> la lista de pruebas de [`docs/Fase2.md`](docs/Fase2.md) no hay que dar por hecho que la Fase 2 funciona.
+> la lista de pruebas de [`docs/Fase3.md`](docs/Fase3.md) no hay que dar por hecho que la Fase 3 funciona.
 
 ---
 
@@ -88,6 +88,8 @@ Assets/_Project/
 │   ├── Presentation/  SelectionIndicator
 │   ├── Utils/         MeshShapes (FlatMeshBuilder)
 │   ├── Match/         MatchManager, MatchState, RestartRules, AutoRestart
+│   ├── AI/            TeamAI, PlayerBrain, FormationShape, PassEvaluator, AIQueries, AIRole
+│   │   └── Behaviors/ BallCarrier, Support, Press (presión/contención/búsqueda), ZoneCover, Goalkeeper
 │   └── DevTools/      TrainingHarness, DebugHud      (provisionales hasta la interfaz definitiva)
 ├── Editor/                       (FutbolTotal.Editor.asmdef)
 │   ├── EditorAssetUtility.cs
@@ -98,7 +100,7 @@ Assets/_Project/
 └── Scenes/     (generado)  Partido.unity, Entrenamiento.unity
 ```
 
-Carpetas previstas para fases siguientes: `Scripts/AI/`, `Scripts/UI/`, `Scenes/MainMenu.unity`.
+Carpetas previstas para la fase siguiente: `Scripts/UI/`, `Scenes/MainMenu.unity`.
 
 ---
 
@@ -116,9 +118,9 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 | ├ `Boundaries` | 4 `BoxCollider` (PM_Wall) | Muros invisibles a 7 m de las líneas (en la Fase 2 habrá saques). |
 | └ `Goal_West`, `Goal_East` | Postes y larguero (`CapsuleCollider`), red (`BoxCollider`, PM_Net), `GoalZone` (trigger) | |
 | `Ball` | `Rigidbody`, `SphereCollider` (PM_Ball), `Ball`, `BallPossession`, `BallVisual` | Hijo `Visual` con la esfera texturizada. |
-| `Team_Home` | `Team`, `FootballInput`, `HumanTeamController` | Equipo humano; ataca hacia +X. |
-| `Team_Away` | `Team` | Ataca hacia −X en la primera parte. Hasta la Fase 3 sus jugadores solo se mueven para sacar. |
-| └ cada jugador (`AUR_09_Forward`...) | `Rigidbody`, `CapsuleCollider`, `PlayerMotor`, `PlayerStamina`, `PlayerActions`, `FootballPlayer` | Hijo `Visual` con torso, pantalón, piernas, cabeza y marca frontal. |
+| `Team_Home` | `Team`, `TeamAI`, `FootballInput`, `HumanTeamController` | Equipo humano; ataca hacia +X en la 1ª parte. La IA mueve a todos menos al jugador activo. |
+| `Team_Away` | `Team`, `TeamAI` | Equipo de la IA; ataca hacia −X en la 1ª parte. |
+| └ cada jugador (`AUR_09_Forward`...) | `Rigidbody`, `CapsuleCollider`, `PlayerMotor`, `PlayerStamina`, `PlayerActions`, `FootballPlayer`, `PlayerBrain` | Hijo `Visual` con torso, pantalón, piernas, cabeza y marca frontal. |
 | `Main Camera` | `Camera`, `MatchCamera` | |
 | `SelectionIndicator` | `MeshFilter`, `MeshRenderer`, `SelectionIndicator` | Anillo y flecha bajo el jugador activo. |
 | `Directional Light` | `Light` | Sombras suaves. |
@@ -137,6 +139,7 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 | Cambiar de jugador | Q | LB / L1 |
 | Pausa | Esc | Start / Options |
 | Ayuda de controles | F1 | Pulsar stick derecho |
+| Ver el rol de la IA de cada jugador | F2 | Pulsar stick izquierdo |
 | Recolocar balón (pruebas) | R | Select / Share |
 
 - **Mantener** pase o tiro carga la potencia; la acción ocurre **al soltar**. Toque corto = pase cercano o tiro suave.
@@ -152,8 +155,8 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 | Fase | Contenido | Estado |
 |---|---|---|
 | **1. Movimiento, balón y controles** | Campo y porterías, jugadores, movimiento con aceleración/giro, sprint con resistencia, conducción, pase corto/largo con asistencia, tiro con potencia y error, entrada, cambio de jugador, detección de gol, cámara básica, HUD de pruebas, generador de escena | **Hecha y probada en Unity** |
-| **2. Reglas del partido** | `MatchManager` con estados (previa, saque inicial, en juego, saque, gol, descanso, final), cronómetro, cambio de campo, saques de banda/puerta/córner simplificados, pausa, repetir partido | **Hecha (pendiente de prueba en Unity)** |
-| 3. IA y porteros | Cerebro por futbolista con comportamientos separados (con balón, apoyo/desmarque, presión, cobertura de zona, portero), coordinación para que solo 1-2 jugadores presionen, formación dinámica según el balón | Pendiente |
+| **2. Reglas del partido** | `MatchManager` con estados (previa, saque inicial, en juego, saque, gol, descanso, final), cronómetro, cambio de campo, saques de banda/puerta/córner simplificados, pausa, repetir partido | **Hecha y probada en Unity** |
+| **3. IA y porteros** | Cerebro por futbolista con comportamientos separados (con balón, apoyo/desmarque, presión, cobertura de zona, portero), coordinación para que solo uno presione, formación dinámica según el balón, etiquetas de rol (F2) | **Hecha (pendiente de prueba en Unity)** |
 | 4. Interfaz, menús y cámara | Marcador y tiempo definitivos (uGUI), menú principal, pausa con opciones, pantalla de controles, pantalla de resultado, cámara con zoom según la jugada | Pendiente |
 
 > La cámara básica se adelanta a la Fase 1 porque sin ella no se puede probar el movimiento, que además es
@@ -164,9 +167,10 @@ El generador los crea todos; esta tabla sirve para montarlos a mano o entender q
 
 ## 7. Limitaciones conocidas
 
-- **La Fase 2 no se ha probado dentro de Unity.** Compila (ver más abajo); la Fase 1 sí se ha probado.
-- Los jugadores no controlados **están quietos** salvo para sacar: no hay IA hasta la Fase 3 (el portero rival no
-  se mueve). Si un rival recoge el balón, hay que robárselo con una entrada.
+- **La Fase 3 no se ha probado dentro de Unity.** Compila (ver más abajo); las Fases 1 y 2 sí se han probado.
+  El equilibrio de la IA (cuánto presiona, cuánto acierta, cuánto para el portero) necesita ajustarse jugando,
+  con los valores de `Resources/FutbolTotal/AISettings`.
+- La IA no tiene niveles de dificultad todavía; se puede ajustar a mano desde `AISettings`.
 - Reglas simplificadas: el reloj se para cuando el balón no está en juego, no hay tiempo añadido, fueras de juego
   ni faltas, y el saque de banda se hace con el pie.
 - El HUD es provisional (IMGUI); la interfaz definitiva llega en la Fase 4.

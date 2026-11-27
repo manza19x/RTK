@@ -29,6 +29,8 @@ namespace FutbolTotal
         public InputAction DebugReset { get; private set; }
         /// <summary>Mostrar u ocultar la ayuda de controles (F1 / stick derecho pulsado).</summary>
         public InputAction ToggleHelp { get; private set; }
+        /// <summary>Mostrar u ocultar el rol de IA de cada jugador (F2 / stick izquierdo pulsado).</summary>
+        public InputAction ToggleAIDebug { get; private set; }
 
         public ChargeButton ShortPass { get; private set; }
         public ChargeButton LongPass { get; private set; }
@@ -68,6 +70,7 @@ namespace FutbolTotal
             Pause = AddButton("Pause", "<Keyboard>/escape", "<Gamepad>/start");
             DebugReset = AddButton("DebugReset", "<Keyboard>/r", "<Gamepad>/select");
             ToggleHelp = AddButton("ToggleHelp", "<Keyboard>/f1", "<Gamepad>/rightStickPress");
+            ToggleAIDebug = AddButton("ToggleAIDebug", "<Keyboard>/f2", "<Gamepad>/leftStickPress");
 
             ShortPass = new ChargeButton(AddButton("ShortPass", "<Keyboard>/j", "<Gamepad>/buttonSouth"), fullChargeSeconds);
             LongPass = new ChargeButton(AddButton("LongPass", "<Keyboard>/l", "<Gamepad>/buttonWest"), fullChargeSeconds);

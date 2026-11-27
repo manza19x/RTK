@@ -29,6 +29,7 @@ namespace FutbolTotal
             "K: tiro (mantén para más potencia)",
             "Q: cambiar de jugador",
             "Esc: pausa · R: recolocar balón",
+            "F2: ver el rol de la IA de cada jugador",
             "<size=11>Las acciones se cargan manteniendo y actúan al soltar.</size>"
         };
 
@@ -41,10 +42,15 @@ namespace FutbolTotal
             "B: tiro (mantén para más potencia)",
             "LB: cambiar de jugador",
             "Start: pausa · Select: recolocar balón",
+            "L3: ver el rol de la IA de cada jugador",
             "<size=11>Las acciones se cargan manteniendo y actúan al soltar.</size>"
         };
 
         private bool showHelp;
+        private bool showRoles;
+        private readonly System.Collections.Generic.Dictionary<FootballPlayer, PlayerBrain> brains =
+            new System.Collections.Generic.Dictionary<FootballPlayer, PlayerBrain>();
+        private GUIStyle roleLabel;
         private float smoothedFps;
 
         private GUIStyle label;
@@ -69,6 +75,7 @@ namespace FutbolTotal
         private void Update()
         {
             if (human != null && human.Input != null && human.Input.ToggleHelp.WasPressedThisFrame()) showHelp = !showHelp;
+            if (human != null && human.Input != null && human.Input.ToggleAIDebug.WasPressedThisFrame()) showRoles = !showRoles;
             if (Time.unscaledDeltaTime > 0f) smoothedFps = Mathf.Lerp(smoothedFps, 1f / Time.unscaledDeltaTime, 0.05f);
         }
 
@@ -87,6 +94,7 @@ namespace FutbolTotal
             label = new GUIStyle(GUI.skin.label) { fontSize = 14, richText = true, wordWrap = false, clipping = TextClipping.Clip };
             label.normal.textColor = Color.white;
             centered = new GUIStyle(label) { alignment = TextAnchor.MiddleCenter };
+            roleLabel = new GUIStyle(centered) { fontSize = 11, fontStyle = FontStyle.Bold };
             big = new GUIStyle(centered) { fontSize = 38, fontStyle = FontStyle.Bold, wordWrap = true };
             bigShadow = new GUIStyle(big);
             bigShadow.normal.textColor = new Color(0f, 0f, 0f, 0.7f);
@@ -107,6 +115,7 @@ namespace FutbolTotal
             EnsureStyles();
 
             DrawStatusPanel(context);
+            if (showRoles) DrawRoleLabels(context);
             if (showHelp) DrawHelpPanel();
             DrawCenterMessages();
         }
@@ -188,6 +197,30 @@ namespace FutbolTotal
             float y = panel.y + Padding;
             float width = panel.width - Padding * 2f;
             foreach (string text in lines) Line(x, ref y, width, text);
+        }
+
+        /// <summary>Etiqueta sobre cada jugador con su rol de IA (o «TÚ»): hace visibles las decisiones de la IA.</summary>
+        private void DrawRoleLabels(MatchContext context)
+        {
+            Camera cam = Camera.main;
+            if (cam == null) return;
+            foreach (FootballPlayer player in context.AllPlayers)
+            {
+                if (!brains.TryGetValue(player, out PlayerBrain brain))
+                {
+                    brain = player.GetComponent<PlayerBrain>();
+                    brains[player] = brain;
+                }
+                string text = player.IsHumanControlled ? "TÚ" : brain != null ? AIRoleNames.Short(brain.Role) : "";
+                Vector3 screen = cam.WorldToScreenPoint(player.transform.position + Vector3.up * 2.1f);
+                if (screen.z <= 0f) continue;
+                Rect rect = new Rect(screen.x - 40f, Screen.height - screen.y - 10f, 80f, 20f);
+                GUI.color = Color.black;
+                GUI.Label(new Rect(rect.x + 1f, rect.y + 1f, rect.width, rect.height), text, roleLabel);
+                GUI.color = player.Team.Side == TeamSide.Home ? new Color(1f, 0.85f, 0.8f) : new Color(0.8f, 0.9f, 1f);
+                GUI.Label(rect, text, roleLabel);
+                GUI.color = Color.white;
+            }
         }
 
         private void DrawCenterMessages()
