@@ -1,5 +1,16 @@
 namespace FutbolTotal
 {
+    /// <summary>Cómo debe mostrar la interfaz el mensaje actual.</summary>
+    public enum MessageStyle
+    {
+        /// <summary>Aviso pequeño y breve (saques, faltas).</summary>
+        Toast,
+        /// <summary>Tarjeta central (previa, descanso, cambio de campo, final).</summary>
+        Banner,
+        /// <summary>Celebración de gol a pantalla completa.</summary>
+        Goal
+    }
+
     /// <summary>
     /// Estado del partido que necesita mostrar la interfaz. Lo implementan <see cref="MatchManager"/> (partido)
     /// y <see cref="TrainingHarness"/> (entrenamiento), así el HUD funciona en ambas escenas.
@@ -19,5 +30,6 @@ namespace FutbolTotal
         string Message { get; }
         /// <summary>Hasta cuándo (Time.unscaledTime) se muestra el mensaje.</summary>
         float MessageUntil { get; }
+        MessageStyle MessageStyle { get; }
     }
 }

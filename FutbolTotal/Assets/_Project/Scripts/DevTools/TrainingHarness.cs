@@ -21,6 +21,7 @@ namespace FutbolTotal
         public int AwayGoals { get; private set; }
         public bool IsPaused { get; private set; }
         public string Message { get; private set; }
+        public MessageStyle MessageStyle { get; private set; }
         public float MessageUntil { get; private set; }
         public string ClockText => "--:--";
         public string PhaseText => "Entrenamiento";
@@ -88,7 +89,7 @@ namespace FutbolTotal
             Team scorer = context.TeamAttacking(goal.GoalSide);
             if (scorer.Side == TeamSide.Home) HomeGoals++;
             else AwayGoals++;
-            ShowMessage($"¡GOL de {scorer.Settings.teamName}!", celebrationSeconds);
+            ShowMessage($"¡GOL de {scorer.Settings.teamName}!", celebrationSeconds, MessageStyle.Goal);
             Debug.Log($"[Fútbol Total] Gol de {scorer.Settings.teamName}. {HomeGoals}-{AwayGoals}");
             StartCoroutine(ResetAfterGoal());
         }
@@ -140,8 +141,9 @@ namespace FutbolTotal
             ShowMessage("Balón recolocado", 1f);
         }
 
-        private void ShowMessage(string text, float seconds)
+        private void ShowMessage(string text, float seconds, MessageStyle style = MessageStyle.Toast)
         {
+            MessageStyle = style;
             Message = text;
             MessageUntil = Time.unscaledTime + seconds;
         }

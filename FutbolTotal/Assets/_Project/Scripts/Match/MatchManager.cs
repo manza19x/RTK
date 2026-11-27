@@ -38,6 +38,7 @@ namespace FutbolTotal
         public bool IsPaused { get; private set; }
         public string Message { get; private set; }
         public float MessageUntil { get; private set; }
+        public MessageStyle MessageStyle { get; private set; }
         public RestartDecision CurrentRestart { get; private set; }
         public MatchSettings Settings => settings;
         public bool IsBallInPlay => State == MatchState.Playing && !IsPaused;
@@ -185,7 +186,7 @@ namespace FutbolTotal
             context.Ball.ResetTo(context.Pitch.Center);
             LockPlayers(true);
             SetHumanInput(false);
-            ShowMessage($"{context.HomeTeam.Settings.teamName} vs {context.AwayTeam.Settings.teamName}\nPulsa J / A para empezar", float.PositiveInfinity);
+            ShowMessage($"{context.HomeTeam.Settings.teamName} vs {context.AwayTeam.Settings.teamName}\nPulsa J / A para empezar", float.PositiveInfinity, MessageStyle.Banner);
             if (matchCamera != null) matchCamera.SnapToTarget();
         }
 
@@ -217,7 +218,7 @@ namespace FutbolTotal
                 SetState(MatchState.HalfTime);
                 StopPlay();
                 stateEndsAt = Time.time + settings.halfTimeSeconds;
-                ShowMessage($"Descanso  ·  {ScoreLine()}", settings.halfTimeSeconds);
+                ShowMessage($"Descanso\n{ScoreLine()}", settings.halfTimeSeconds, MessageStyle.Banner);
             }
             else
             {
@@ -234,14 +235,14 @@ namespace FutbolTotal
             context.AwayTeam.SetAttackDirection(-context.AwayTeam.AttackDirection);
             BeginKickoff(firstHalfKickoffTeam.Opponent);
             string direction = human.Team.AttackDirection > 0 ? "la derecha" : "la izquierda";
-            ShowMessage($"Segunda parte · Cambio de campo\nAhora atacas hacia {direction}", settings.messageSeconds + 1f);
+            ShowMessage($"Segunda parte\nCambio de campo: ahora atacas hacia {direction}", settings.messageSeconds + 1f, MessageStyle.Banner);
         }
 
         private void EndMatch()
         {
             SetState(MatchState.FullTime);
             StopPlay();
-            ShowMessage($"FINAL  ·  {ScoreLine()}", float.PositiveInfinity);
+            ShowMessage($"Final\n{ScoreLine()}", float.PositiveInfinity, MessageStyle.Banner);
             MatchEnded?.Invoke();
         }
 
@@ -268,7 +269,7 @@ namespace FutbolTotal
             LockPlayers(true);
             SetHumanInput(false);
             stateEndsAt = Time.time + settings.goalCelebrationSeconds;
-            ShowMessage($"¡GOL de {scorer.Settings.teamName}!\n{ScoreLine()}", settings.goalCelebrationSeconds);
+            ShowMessage($"¡GOL de {scorer.Settings.teamName}!\n{ScoreLine()}", settings.goalCelebrationSeconds, MessageStyle.Goal);
             GoalScored?.Invoke(scorer);
         }
 
@@ -484,8 +485,9 @@ namespace FutbolTotal
 
         private void ApplyHumanInput() => human.InputEnabled = humanInputAllowed && !IsPaused;
 
-        private void ShowMessage(string text, float seconds)
+        private void ShowMessage(string text, float seconds, MessageStyle style = MessageStyle.Toast)
         {
+            MessageStyle = style;
             Message = text;
             MessageUntil = float.IsPositiveInfinity(seconds) ? float.PositiveInfinity : Time.unscaledTime + seconds;
         }
